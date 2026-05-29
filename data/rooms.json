@@ -1,0 +1,10 @@
+{
+  "start_classroom": {
+    "title": "催眠的大学教室",
+    "description": "你坐在大学教室的第一排。水课老师的催眠声成了最完美的物理结界。\n你瞥了一眼旁边的勇者，他正流着口水，在脑海里疯狂构思他的[bold yellow]‘后宫大计划’[/bold yellow]。\n而你兜里的[bold cyan]【低压电工证】[/bold cyan]正在隐隐发烫。",
+    "options": [
+      {"text": "[1] 潜行去拔掉讲台的投影仪总电线 (破坏Flag)", "next_room": "pull_plug"},
+      {"text": "[2] 顺从土著法则，睡觉触发世界线毁灭 (白给)", "next_room": "game_over_sleep"}
+    ]
+  }
+}

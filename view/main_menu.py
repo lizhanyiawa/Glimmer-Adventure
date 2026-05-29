@@ -7,6 +7,9 @@ from textual import on
 
 # 导入底层写好的引擎控制核心
 from engine import GameEngine, GameState
+# 导入我们在 view 目录下写好的各个屏幕组件
+from view.naming_screen import NamingScreen
+from view.global_settings import GlobalSettingsScreen
 
 class MenuButton(Button):
     """主菜单通用的样式按钮组件"""
@@ -60,8 +63,8 @@ class MainMenuScreen(Screen):
 
     def compose(self):
         with Vertical(id="menu_box"):
-            yield Static("★ THE CHOSEN OUTSIDER ★", classes="title")
-            yield Static("—— 异界因果律解构引擎 ——", classes="subtitle")
+            yield Static("★ THE ADVENTURE ★", classes="title")
+            yield Static("—— 冒险 ——", classes="subtitle")
             yield MenuButton("[1] 构筑新的因果世界线 (Start Game)", id="btn_new_game")
             yield MenuButton("[2] 激活旧的世界线断点 (Load Game)", id="btn_load_game")
             yield MenuButton("[3] 调整真理规则参数 (Settings)", id="btn_settings")
@@ -69,36 +72,45 @@ class MainMenuScreen(Screen):
 
     def on_mount(self):
         """每次主菜单显示时，动态扫描是否存在存档文件"""
-        self.update_load_button_state()
+        self.check_save_file()
 
-    def update_load_button_state(self):
+    def check_save_file(self):
         """如果没有任何物理存档，则将'读取游戏'置灰"""
-        engine = self.app.engine
-        slots = engine.get_save_slots()
-        has_any_save = any(slot["exists"] for slot in slots)
+        # 直接去检查我们 1 号槽位的物理文件在不在
+        has_save = os.path.exists("saves/slot_1.json")
         
         load_btn = self.query_one("#btn_load_game", MenuButton)
-        if not has_any_save:
+        if not has_save:
             load_btn.disabled = True
             load_btn.label = "[2] 激活旧的世界线断点 (无存档)"
         else:
             load_btn.disabled = False
-            load_btn.label = "[2] 激活旧的世界线断点 (Load Game)"
+            load_btn.label = "[2] 激活旧的世界线断点 (读取游戏)"
 
     def on_button_pressed(self, event: Button.Pressed):
         button_id = event.button.id
+
         if button_id == "btn_new_game":
-            # 初始化一个新的 GameState，并进入游戏画面
+            # 🌟 核心防漏逻辑：在这里先强行重置全新的游戏因果状态！
+            # 确保每次点新游戏，血量、污染、flags全部洗牌回出厂设置
+            from engine.engine import GameState # 确保你导入了GameState类
             self.app.engine.state = GameState()
-            self.notify("因果逻辑链已重置，正在进入世界...", title="⏳ 系统初始化")
-            # 预留给未来 GamePlayScreen 接入的接口
-            self.app.action_start_gameplay()
+            
+            # 状态刷新干净后，再推入取名屏让玩家输入真名
+            self.app.push_screen(NamingScreen())
             
         elif button_id == "btn_load_game":
-            self.app.push_screen(SaveSelectorScreen())
+            # 读档逻辑保持你原本最完整的状态
+            if self.app.engine.load_game(1):
+                self.notify("旧的世界线已重构，正在同步时空...", title="系统")
+                self.app.pop_screen()  # 卸载主菜单
+                self.app.push_screen(self.app.game_play_screen)  # 换上游戏视窗
+                self.app.game_play_screen.refresh_ui()  # 让游戏视窗刷新房间数据
+            else:
+                self.notify("读取时空断点失败，数据可能遭到了常识篡改。", title="错误")
             
         elif button_id == "btn_settings":
-            self.app.push_screen(SettingsScreen())
+            self.app.push_screen(GlobalSettingsScreen())
             
         elif button_id == "btn_exit":
             self.app.push_screen(QuitConfirmScreen())
@@ -151,7 +163,7 @@ class SaveSelectorScreen(Screen):
 
     def compose(self):
         with Vertical(id="selector_box"):
-            yield Static("💾 物理因果世界线槽位", classes="sel_title")
+            yield Static("💾 存档槽位", classes="sel_title")
             yield ListView(id="save_list")
             yield Button("关闭视窗", id="btn_cancel")
 
@@ -249,7 +261,7 @@ class SettingsScreen(Screen):
     def compose(self):
         engine = self.app.engine
         with Vertical(id="settings_box"):
-            yield Static("⚙️ 真理规则参数调谐", classes="settings_title")
+            yield Static("设置菜单", classes="settings_title")
             
             # 1. Debug 模式 (真理视界)
             with Horizontal(classes="setting_row"):
@@ -271,14 +283,14 @@ class SettingsScreen(Screen):
                 
             # 3. 局外人音能解构
             with Horizontal(classes="setting_row"):
-                yield Static("· 局外人音能解构 (音频开关)", classes="setting_desc")
+                yield Static("· 音频开关", classes="setting_desc")
                 yield Button(
                     "ON" if engine.settings["sound_enabled"] else "OFF", 
                     id="toggle_sound", 
                     classes="toggle_btn"
                 )
                 
-            yield Button("写入设定并封闭视窗", id="btn_close_settings")
+            yield Button("保存并关闭", id="btn_close_settings")
 
     def on_button_pressed(self, event: Button.Pressed):
         btn_id = event.button.id
@@ -296,7 +308,7 @@ class SettingsScreen(Screen):
             next_idx = (rates.index(curr_rate) + 1) % len(rates) if curr_rate in rates else 2
             engine.settings["corruption_rate"] = rates[next_idx]
             event.button.label = f"{engine.settings['corruption_rate']}x"
-            self.notify(f"黄油侵蚀权重调整为: {engine.settings['corruption_rate']}x")
+            self.notify(f"侵蚀权重调整为: {engine.settings['corruption_rate']}x")
             
         elif btn_id == "toggle_sound":
             engine.settings["sound_enabled"] = not engine.settings["sound_enabled"]
@@ -371,7 +383,7 @@ class QuitConfirmScreen(Screen):
     def compose(self):
         with Vertical(id="confirm_box"):
             yield Static("⚠️ 警告", classes="confirm_title")
-            yield Static("你确定要切断魔力电线并逃离吗？\n当前未保存的因果标记将会蒸发！", classes="confirm_text")
+            yield Static("你确定要离开游戏吗？\n当前未保存的进度将会丢失！", classes="confirm_text")
             with Horizontal(id="btn_box"):
                 yield Button("强行跑路", id="btn_yes", classes="choice_btn")
                 yield Button("容我想想", id="btn_no", classes="choice_btn")
@@ -402,7 +414,7 @@ class MUDApp(App):
         # 预留跳转接口：
         # from game_menu import GamePlayScreen
         # self.push_screen(GamePlayScreen())
-        self.notify(f"成功将当前世界线载入：房间=[{self.engine.state.room_id}]", title="⚡ 引擎启动中")
+        self.notify(f"成功将当前世界线载入：房间=[{self.engine.state.room_id}]", title="引擎启动中")
 
 if __name__ == "__main__":
     app = MUDApp()

@@ -1,48 +1,57 @@
 {
   "start_classroom": {
-    "title": "空教室",
-    "description": "高数老师在讲台上用催眠的声调念着公式。右侧的投影仪插座似乎有些异常。",
+    "title": "崩溃高数教室",
+    "style": "normal",
+    "description": "你在空荡荡的教室中醒来。四周一片死寂，魔力散逸的微光在空气中飘忽。讲台上的电线被粗暴地扯断了，散发着危险的火花。\n旁边躺着一位因为魔力枯竭而眼神恍惚的女学徒。",
     "options": [
       {
-        "text": "【科技】用测电笔排查投影仪插座故障",
-        "target_room": "classroom_power_cut_success",
+        "text": "【探索】猫着腰，悄悄溜出教室后门",
+        "target_room": "corridor",
+        "effects": {
+          "hp": 0,
+          "corruption": 0
+        }
+      },
+      {
+        "text": "【科技】尝试用随身工具修复断掉的电线",
+        "target_room": "start_classroom",
         "require": {
-          "stats": {
-            "tech_level": 3
-          },
           "flags": {
-            "classroom_power_cut": false
+            "has_license": true
           }
         },
         "effects": {
-          "stats": {
-            "san": -5
-          },
+          "hp": 10,
+          "corruption": 5,
           "flags": {
             "classroom_power_cut": true
           }
         }
       },
       {
-        "text": "【堕落】趁着混乱去抚摸恍惚的女学徒",
-        "target_room": "classroom_touch_girl",
-        "require": {
-          "stats": {
-            "corruption": 20
-          }
-        },
+        "text": "【堕落】伸手去抚摸恍惚的女学徒",
+        "target_room": "start_classroom",
         "effects": {
-          "stats": {
-            "corruption": 5,
-            "san": -10
+          "hp": -20,
+          "corruption": 15,
+          "flags": {
+            "met_alice": true
           }
         }
-      },
+      }
+    ]
+  },
+  "corridor": {
+    "title": "幽暗学院走廊",
+    "style": "warning",
+    "description": "走廊里弥漫着淡淡的红雾，墙壁上的魔法壁灯一闪一闪，仿佛某种生物的呼吸。远处的阴影里似乎有什么东西在窥视着你。\n你感到一阵强烈的不适。",
+    "options": [
       {
-        "text": "推开前门，堂堂正正地走出去",
-        "target_room": "corridor_east",
-        "require": {},
-        "effects": {}
+        "text": "【撤退】还是先回教室躲一躲",
+        "target_room": "start_classroom",
+        "effects": {
+          "hp": -5
+        }
       }
     ]
   }

@@ -1,10 +1,49 @@
 {
   "start_classroom": {
-    "title": "催眠的大学教室",
-    "description": "你坐在大学教室的第一排。水课老师的催眠声成了最完美的物理结界。\n你瞥了一眼旁边的勇者，他正流着口水，在脑海里疯狂构思他的[bold yellow]‘后宫大计划’[/bold yellow]。\n而你兜里的[bold cyan]【低压电工证】[/bold cyan]正在隐隐发烫。",
+    "title": "空教室",
+    "description": "高数老师在讲台上用催眠的声调念着公式。右侧的投影仪插座似乎有些异常。",
     "options": [
-      {"text": "[1] 潜行去拔掉讲台的投影仪总电线 (破坏Flag)", "next_room": "pull_plug"},
-      {"text": "[2] 顺从土著法则，睡觉触发世界线毁灭 (白给)", "next_room": "game_over_sleep"}
+      {
+        "text": "【科技】用测电笔排查投影仪插座故障",
+        "target_room": "classroom_power_cut_success",
+        "require": {
+          "stats": {
+            "tech_level": 3
+          },
+          "flags": {
+            "classroom_power_cut": false
+          }
+        },
+        "effects": {
+          "stats": {
+            "san": -5
+          },
+          "flags": {
+            "classroom_power_cut": true
+          }
+        }
+      },
+      {
+        "text": "【堕落】趁着混乱去抚摸恍惚的女学徒",
+        "target_room": "classroom_touch_girl",
+        "require": {
+          "stats": {
+            "corruption": 20
+          }
+        },
+        "effects": {
+          "stats": {
+            "corruption": 5,
+            "san": -10
+          }
+        }
+      },
+      {
+        "text": "推开前门，堂堂正正地走出去",
+        "target_room": "corridor_east",
+        "require": {},
+        "effects": {}
+      }
     ]
   }
 }

@@ -1,3 +1,4 @@
 saves/
 engine_config.json
 __pycache__/
+.vs/

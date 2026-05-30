@@ -2,22 +2,17 @@ import os
 from textual.app import App
 from textual.screen import Screen
 from textual.widgets import Static, Button, ListItem, ListView
-from textual.containers import Vertical, Horizontal, Container
+from textual.containers import Vertical, Horizontal
 from textual import on
 
-# 导入底层写好的引擎控制核心
 from engine import GameEngine, GameState
-# 导入我们在 view 目录下写好的各个屏幕组件
 from view.naming_screen import NamingScreen
 from view.global_settings import GlobalSettingsScreen
 
 class MenuButton(Button):
-    """主菜单通用的样式按钮组件"""
     pass
 
-# ==========================================
-# 1. 核心：主菜单视窗 (MainMenuScreen)
-# ==========================================
+# 主菜单
 class MainMenuScreen(Screen):
     BINDINGS = [
         ("1", "new_game", "新游戏"),
@@ -72,12 +67,13 @@ class MainMenuScreen(Screen):
         with Vertical(id="menu_box"):
             yield Static("★ THE ADVENTURE ★", classes="title")
             yield Static("—— 冒险 ——", classes="subtitle")
-            yield MenuButton("[1] 构筑新的因果世界线 (Start Game)", id="btn_new_game")
-            yield MenuButton("[2] 激活旧的世界线断点 (Load Game)", id="btn_load_game")
-            yield MenuButton("[3] 调整真理规则参数 (Settings)", id="btn_settings")
-            yield MenuButton("[4] 强行断开魔力连接 (Exit)", id="btn_exit")
-            yield Static("使用 1-4 数字键选择，或用鼠标点击", id="menu_hint", classes="subtitle")
+            yield MenuButton("[1] 新游戏", id="btn_new_game")
+            yield MenuButton("[2] 读取游戏", id="btn_load_game")
+            yield MenuButton("[3] 设置", id="btn_settings")
+            yield MenuButton("[4] 退出游戏", id="btn_exit")
+            yield Static("使用 1-4 数字键选择，或用鼠标点击", classes="subtitle")
 
+    # 键盘动作
     def action_new_game(self):
         from engine.engine import GameState
         self.app.engine.state = GameState()
@@ -85,12 +81,12 @@ class MainMenuScreen(Screen):
 
     def action_load_game(self):
         if self.app.engine.load_game(1):
-            self.notify("旧的世界线已重构，正在同步时空...", title="系统")
+            self.notify("存档读取成功")
             self.app.pop_screen()
             self.app.push_screen(self.app.game_play_screen)
             self.app.game_play_screen.refresh_ui()
         else:
-            self.notify("读取时空断点失败，数据可能遭到了常识篡改。", title="错误")
+            self.notify("读取存档失败", title="错误")
 
     def action_settings(self):
         self.app.push_screen(GlobalSettingsScreen())
@@ -99,54 +95,44 @@ class MainMenuScreen(Screen):
         self.app.push_screen(QuitConfirmScreen())
 
     def on_mount(self):
-        """每次主菜单显示时，动态扫描是否存在存档文件"""
         self.check_save_file()
 
+    # 检查存档是否存在，无存档则禁用读取按钮
     def check_save_file(self):
-        """如果没有任何物理存档，则将'读取游戏'置灰"""
-        # 直接去检查我们 1 号槽位的物理文件在不在
         has_save = os.path.exists("saves/slot_1.json")
-        
         load_btn = self.query_one("#btn_load_game", MenuButton)
         if not has_save:
             load_btn.disabled = True
-            load_btn.label = "[2] 激活旧的世界线断点 (无存档)"
+            load_btn.label = "[2] 读取游戏 (无存档)"
         else:
             load_btn.disabled = False
-            load_btn.label = "[2] 激活旧的世界线断点 (读取游戏)"
+            load_btn.label = "[2] 读取游戏"
 
     def on_button_pressed(self, event: Button.Pressed):
         button_id = event.button.id
 
         if button_id == "btn_new_game":
-            # 🌟 核心防漏逻辑：在这里先强行重置全新的游戏因果状态！
-            # 确保每次点新游戏，血量、污染、flags全部洗牌回出厂设置
-            from engine.engine import GameState # 确保你导入了GameState类
+            from engine.engine import GameState
             self.app.engine.state = GameState()
-            
-            # 状态刷新干净后，再推入取名屏让玩家输入真名
             self.app.push_screen(NamingScreen())
-            
+
         elif button_id == "btn_load_game":
-            # 读档逻辑保持你原本最完整的状态
             if self.app.engine.load_game(1):
-                self.notify("旧的世界线已重构，正在同步时空...", title="系统")
-                self.app.pop_screen()  # 卸载主菜单
-                self.app.push_screen(self.app.game_play_screen)  # 换上游戏视窗
-                self.app.game_play_screen.refresh_ui()  # 让游戏视窗刷新房间数据
+                self.notify("存档读取成功")
+                self.app.pop_screen()
+                self.app.push_screen(self.app.game_play_screen)
+                self.app.game_play_screen.refresh_ui()
             else:
-                self.notify("读取时空断点失败，数据可能遭到了常识篡改。", title="错误")
-            
+                self.notify("读取存档失败", title="错误")
+
         elif button_id == "btn_settings":
             self.app.push_screen(GlobalSettingsScreen())
-            
+
         elif button_id == "btn_exit":
             self.app.push_screen(QuitConfirmScreen())
 
 
-# ==========================================
-# 2. 真实的物理存档选择器 (SaveSelectorScreen)
-# ==========================================
+# 存档选择界面
 class SaveSelectorScreen(Screen):
     BINDINGS = [
         ("escape", "cancel", "取消"),
@@ -196,45 +182,41 @@ class SaveSelectorScreen(Screen):
 
     def compose(self):
         with Vertical(id="selector_box"):
-            yield Static("💾 存档槽位", classes="sel_title")
+            yield Static("存档", classes="sel_title")
             yield ListView(id="save_list")
-            yield Button("[ESC] 关闭视窗", id="btn_cancel")
-            yield Static("使用 ↑↓ 选择，Enter 确认，ESC 关闭", id="save_hint", classes="sel_title")
+            yield Button("[ESC] 关闭", id="btn_cancel")
+            yield Static("使用 ↑↓ 选择，Enter 确认，ESC 关闭", classes="sel_title")
 
     def on_mount(self):
-        """动态渲染真实存在的存档"""
         self.refresh_save_list()
 
+    # 刷新存档列表
     def refresh_save_list(self):
         list_view = self.query_one("#save_list", ListView)
         list_view.clear()
-        
+
         slots = self.app.engine.get_save_slots()
         for s in slots:
             slot_id = s["slot"]
             if s["exists"]:
-                desc = f" 槽位 [{slot_id}] · {s['room_id']} · 阶位:{s['level']} ({s['last_saved']})"
+                desc = f" 槽位 [{slot_id}] · {s['room_id']} · {s['last_saved']}"
                 item = ListItem(Static(desc, classes="save_item_label"), id=f"slot_{slot_id}")
             else:
-                item = ListItem(Static(f" 槽位 [{slot_id}] · ( 空白世界线数据 )", classes="save_item_label"), id=f"slot_{slot_id}")
-                # 空档置灰，防止选择
+                item = ListItem(Static(f" 槽位 [{slot_id}] · (空)", classes="save_item_label"), id=f"slot_{slot_id}")
                 item.disabled = True
             list_view.append(item)
 
     @on(ListView.Selected)
     def on_save_selected(self, event: ListView.Selected):
-        slot_id_str = event.item.id  # 例如 "slot_1"
+        slot_id_str = event.item.id
         slot_idx = int(slot_id_str.split("_")[1])
-        
-        # 引擎物理读取
         success = self.app.engine.load_game(slot_idx)
         if success:
-            self.notify(f"世界线断点 [{slot_idx}] 读取成功！", title="💾 加载完成")
+            self.notify(f"存档 [{slot_idx}] 读取成功")
             self.app.pop_screen()
-            # 恢复后直接引导玩家进入游戏界面
             self.app.action_start_gameplay()
         else:
-            self.notify(f"糟了！断点数据读取失败。", severity="error", title="错误")
+            self.notify("读取存档失败", severity="error", title="错误")
 
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "btn_cancel":
@@ -251,16 +233,14 @@ class SaveSelectorScreen(Screen):
             slot_idx = int(slot_id_str.split("_")[1])
             success = self.app.engine.load_game(slot_idx)
             if success:
-                self.notify(f"世界线断点 [{slot_idx}] 读取成功！", title="💾 加载完成")
+                self.notify(f"存档 [{slot_idx}] 读取成功")
                 self.app.pop_screen()
                 self.app.action_start_gameplay()
             else:
-                self.notify(f"糟了！断点数据读取失败。", severity="error", title="错误")
+                self.notify("读取存档失败", severity="error", title="错误")
 
 
-# ==========================================
-# 3. 真实的底层配置界面 (SettingsScreen)
-# ==========================================
+# 设置界面（在主菜单调用）
 class SettingsScreen(Screen):
     CSS = """
     SettingsScreen { 
@@ -312,72 +292,64 @@ class SettingsScreen(Screen):
     def compose(self):
         engine = self.app.engine
         with Vertical(id="settings_box"):
-            yield Static("设置菜单", classes="settings_title")
-            
-            # 1. Debug 模式 (真理视界)
+            yield Static("设置", classes="settings_title")
+
             with Horizontal(classes="setting_row"):
-                yield Static("· 真理视界 (显示逻辑参数)", classes="setting_desc")
+                yield Static("调试模式", classes="setting_desc")
                 yield Button(
-                    "已开启" if engine.settings["debug_mode"] else "已关闭", 
-                    id="toggle_debug", 
+                    "开" if engine.settings["debug_mode"] else "关",
+                    id="toggle_debug",
                     classes="toggle_btn"
                 )
-                
-            # 2. 黄油侵蚀倍率 (黄油浓度)
+
             with Horizontal(classes="setting_row"):
-                yield Static("· 异质常识侵蚀倍率", classes="setting_desc")
+                yield Static("侵蚀倍率", classes="setting_desc")
                 yield Button(
-                    f"{engine.settings['corruption_rate']}x", 
-                    id="toggle_corruption", 
+                    f"{engine.settings['corruption_rate']}x",
+                    id="toggle_corruption",
                     classes="toggle_btn"
                 )
-                
-            # 3. 局外人音能解构
+
             with Horizontal(classes="setting_row"):
-                yield Static("· 音频开关", classes="setting_desc")
+                yield Static("音效", classes="setting_desc")
                 yield Button(
-                    "ON" if engine.settings["sound_enabled"] else "OFF", 
-                    id="toggle_sound", 
+                    "开" if engine.settings["sound_enabled"] else "关",
+                    id="toggle_sound",
                     classes="toggle_btn"
                 )
-                
+
             yield Button("保存并关闭", id="btn_close_settings")
 
     def on_button_pressed(self, event: Button.Pressed):
         btn_id = event.button.id
         engine = self.app.engine
-        
+
         if btn_id == "toggle_debug":
             engine.settings["debug_mode"] = not engine.settings["debug_mode"]
-            event.button.label = "已开启" if engine.settings["debug_mode"] else "已关闭"
-            self.notify(f"真理视界变更为: {engine.settings['debug_mode']}")
-            
+            event.button.label = "开" if engine.settings["debug_mode"] else "关"
+            self.notify(f"调试模式: {'开' if engine.settings['debug_mode'] else '关'}")
+
         elif btn_id == "toggle_corruption":
-            # 在 1.0 -> 1.5 -> 2.0 -> 0.0 -> 0.5 循环循环
             rates = [0.0, 0.5, 1.0, 1.5, 2.0]
             curr_rate = engine.settings["corruption_rate"]
             next_idx = (rates.index(curr_rate) + 1) % len(rates) if curr_rate in rates else 2
             engine.settings["corruption_rate"] = rates[next_idx]
             event.button.label = f"{engine.settings['corruption_rate']}x"
-            self.notify(f"侵蚀权重调整为: {engine.settings['corruption_rate']}x")
-            
+            self.notify(f"侵蚀倍率: {engine.settings['corruption_rate']}x")
+
         elif btn_id == "toggle_sound":
             engine.settings["sound_enabled"] = not engine.settings["sound_enabled"]
-            event.button.label = "ON" if engine.settings["sound_enabled"] else "OFF"
-            self.notify(f"音轨捕获状态已修改。")
-            
+            event.button.label = "开" if engine.settings["sound_enabled"] else "关"
+            self.notify(f"音效: {'开' if engine.settings['sound_enabled'] else '关'}")
+
         elif btn_id == "btn_close_settings":
-            # 保存到本地物理硬盘 config
             engine.save_settings()
             self.app.pop_screen()
-            # 通知主菜单刷新状态
             if hasattr(self.app.main_menu_screen, "update_load_button_state"):
                 self.app.main_menu_screen.update_load_button_state()
 
 
-# ==========================================
-# 4. 完美退出弹窗 (QuitConfirmScreen)
-# ==========================================
+# 退出确认弹窗
 class QuitConfirmScreen(Screen):
     BINDINGS = [
         ("y", "confirm", "确认退出"),
@@ -439,12 +411,12 @@ class QuitConfirmScreen(Screen):
 
     def compose(self):
         with Vertical(id="confirm_box"):
-            yield Static("⚠️ 警告", classes="confirm_title")
-            yield Static("你确定要离开游戏吗？\n当前未保存的进度将会丢失！", classes="confirm_text")
-            yield Static("按 Y 确认退出，N 或 ESC 取消", id="quit_hint", classes="confirm_text")
+            yield Static("⚠️ 退出确认", classes="confirm_title")
+            yield Static("确定要退出游戏吗？\n未保存的进度将会丢失。", classes="confirm_text")
+            yield Static("按 Y 确认，N 或 ESC 取消", classes="confirm_text")
             with Horizontal(id="btn_box"):
-                yield Button("[Y] 强行跑路", id="btn_yes", classes="choice_btn")
-                yield Button("[N] 容我想想", id="btn_no", classes="choice_btn")
+                yield Button("[Y] 退出", id="btn_yes", classes="choice_btn")
+                yield Button("[N] 取消", id="btn_no", classes="choice_btn")
 
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "btn_yes":
@@ -459,26 +431,15 @@ class QuitConfirmScreen(Screen):
         self.app.pop_screen()
 
 
-# ==========================================
-# 🚀 5. App 协调调度器主类 (Bootstrapper)
-# ==========================================
+# 应用入口
 class MUDApp(App):
-    """协调前端多屏幕切换与全局引擎生命周期"""
     def on_mount(self):
-        # 1. 唯一实例化物理引擎，保证所有屏幕读取的是同一个全局实例 (Singleton Engine Pattern)
         self.engine = GameEngine()
-        
-        # 2. 挂接主菜单，作为第一顺位渲染视图
         self.main_menu_screen = MainMenuScreen()
         self.push_screen(self.main_menu_screen)
 
     def action_start_gameplay(self):
-        """在这里挂接你未来的 GamePlayScreen (游戏局内大视窗)"""
-        # 我们目前可以用一个轻量的通知占位，直到你将 game_menu 里面的 GamePlayScreen 也重写并导入进来。
-        # 预留跳转接口：
-        # from game_menu import GamePlayScreen
-        # self.push_screen(GamePlayScreen())
-        self.notify(f"成功将当前世界线载入：房间=[{self.engine.state.room_id}]", title="引擎启动中")
+        self.notify(f"已加载房间: {self.engine.state.room_id}", title="进入游戏")
 
 if __name__ == "__main__":
     app = MUDApp()

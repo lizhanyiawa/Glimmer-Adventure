@@ -7,14 +7,11 @@
       {
         "text": "【探索】猫着腰，悄悄溜出教室后门",
         "target_room": "corridor",
-        "effects": {
-          "hp": 0,
-          "corruption": 0
-        }
+        "effects": {}
       },
       {
         "text": "【科技】尝试用随身工具修复断掉的电线",
-        "target_room": "start_classroom",
+        "target_room": "start_classroom_powered",
         "require": {
           "flags": {
             "has_license": true
@@ -24,7 +21,7 @@
           "hp": 10,
           "corruption": 5,
           "flags": {
-            "classroom_power_cut": true
+            "classroom_power_fixed": true
           }
         }
       },
@@ -41,17 +38,198 @@
       }
     ]
   },
+
+  "start_classroom_powered": {
+    "title": "通电的崩溃教室",
+    "style": "normal",
+    "description": "滋滋——断裂的电线在你高超的改装技术下重新咬合。头顶苍白的日光灯忽然亮起，驱散了不可名状的微光。电能激荡，角落里的多媒体投影仪突然亮起，投射出一行血淋淋的教案日志。\n女学徒在强光下痛苦地低吟。",
+    "options": [
+      {
+        "text": "【科技】迅速拷贝投影仪上的核心教案日志",
+        "target_room": "start_classroom_powered",
+        "effects": {
+          "san": -5,
+          "flags": {
+            "has_records": true
+          }
+        }
+      },
+      {
+        "text": "【探索】踏入已经通电的幽暗走廊",
+        "target_room": "corridor",
+        "effects": {}
+      }
+    ]
+  },
+
   "corridor": {
     "title": "幽暗学院走廊",
     "style": "warning",
-    "description": "走廊里弥漫着淡淡的红雾，墙壁上的魔法壁灯一闪一闪，仿佛某种生物的呼吸。远处的阴影里似乎有什么东西在窥视着你。\n你感到一阵强烈的不适。",
+    "description": "走廊里弥漫着淡淡的红雾，墙壁上的魔法壁灯一闪一闪，仿佛某种生物的呼吸。这里像一个辐射状的因果迷宫，前方的指示牌分别指向【图书馆】、【实验室】和深处的【礼拜堂】。",
     "options": [
       {
-        "text": "【撤退】还是先回教室躲一躲",
-        "target_room": "start_classroom",
+        "text": "【探索】左转，推开落满灰尘的【废弃图书馆】大门",
+        "target_room": "library",
+        "effects": {}
+      },
+      {
+        "text": "【探索】右转，走下台阶前往【地下实验室】",
+        "target_room": "lab",
+        "effects": {}
+      },
+      {
+        "text": "【探索】硬着头皮走向走廊尽头的【废弃礼拜堂】",
+        "target_room": "chapel",
         "effects": {
-          "hp": -5
+          "corruption": 5
         }
+      }
+    ]
+  },
+
+  "library": {
+    "title": "废弃图书馆",
+    "style": "normal",
+    "description": "书架上堆满了落满灰尘的旧书，空气中弥漫着纸张腐朽的味道。角落里有一张桌子，上面放着一本翻开的笔记。\n这里安静得让人不安。",
+    "options": [
+      {
+        "text": "【探索】翻阅桌上的笔记（似乎是一本禁忌微积分改造指南）",
+        "target_room": "library_secret",
+        "effects": {
+          "san": -10,
+          "flags": {
+            "has_license": true
+          }
+        }
+      },
+      {
+        "text": "【探索】在书架间盲目搜索（可能会有危险）",
+        "target_room": "library",
+        "effects": {
+          "hp": -5,
+          "san": -3
+        }
+      },
+      {
+        "text": "【撤退】退回学院走廊枢纽",
+        "target_room": "corridor",
+        "effects": {}
+      }
+    ]
+  },
+
+  "library_secret": {
+    "title": "图书馆阴暗书架",
+    "style": "fade",
+    "description": "当你合上笔记的一瞬间，你脑子里凭空多出了一段关于高压电能与魔力重组的禁忌常识（已获得修复教室电线的资格）。\n同时，由于触碰了禁忌，四周的书架开始像沥青一样溶解流淌，视线逐渐模糊...",
+    "options": [
+      {
+        "text": "【撤退】强忍着脑部剧痛，摸黑逃回走廊",
+        "target_room": "corridor",
+        "effects": {
+          "san": -5
+        }
+      }
+    ]
+  },
+
+  "lab": {
+    "title": "地下实验室",
+    "style": "system",
+    "description": "实验室的应急灯发出惨白的光。各种仪器散乱地摆放着，一台核心的高能微粒设备仍处于锁死状态，没有足够的电力，它无法动弹半分。",
+    "options": [
+      {
+        "text": "【科技】利用主教学楼的高压电强行激活大型设备",
+        "target_room": "lab_active",
+        "require": {
+          "flags": {
+            "classroom_power_fixed": true
+          }
+        },
+        "effects": {
+          "san": -15,
+          "corruption": 15,
+          "flags": {
+            "lab_core_activated": true
+          }
+        }
+      },
+      {
+        "text": "【撤退】没有电一切都是白搭，先退回走廊",
+        "target_room": "corridor",
+        "effects": {}
+      }
+    ]
+  },
+
+  "lab_active": {
+    "title": "暴走的地下实验室",
+    "style": "shake",
+    "description": "轰鸣声大作！随着教室电能的合闸，这台大型机器喷射出紫色的粒子流。屏幕上疯狂弹窗：『常识屏障解构进度：99%』。\n整个实验室在粒子激荡下开始疯狂震颤！",
+    "options": [
+      {
+        "text": "【科技】将拷贝到的核心教案日志插入终端，尝试改写世界常数",
+        "target_room": "lab_active",
+        "require": {
+          "flags": {
+            "has_records": true
+          }
+        },
+        "effects": {
+          "hp": 50,
+          "san": 50,
+          "corruption": -30,
+          "flags": {
+            "world_saved": true
+          }
+        }
+      },
+      {
+        "text": "【撤退】机器快炸了！狼狈地逃回走廊",
+        "target_room": "corridor",
+        "effects": {
+          "hp": -30
+        }
+      }
+    ]
+  },
+
+  "chapel": {
+    "title": "废弃礼拜堂",
+    "style": "lust",
+    "description": "礼拜堂的彩色玻璃已经碎裂大半，月光洒在残留着暗红痕迹的祭坛上。空气中弥漫着一种令人不安的甜腻气息。\n一尊长着女学徒面孔的怪异神像正慈祥地注视着你。",
+    "options": [
+      {
+        "text": "【堕落】跪在祭坛前，祈求神像赐予不可名状的魔力",
+        "target_room": "chapel",
+        "effects": {
+          "corruption": 30,
+          "san": -20,
+          "flags": {
+            "blessed_by_god": true
+          }
+        }
+      },
+      {
+        "text": "【因果反噬】凝视神像，突然发现神像的脸变成了被你亵渎的艾丽丝！",
+        "target_room": "chapel",
+        "require": {
+          "flags": {
+            "met_alice": true
+          }
+        },
+        "effects": {
+          "hp": -50,
+          "san": -30,
+          "flags": {
+            "alice_curse": true
+          }
+        }
+      },
+      {
+        "text": "【撤退】赶紧离开这个鬼地方",
+        "target_room": "corridor",
+        "effects": {}
       }
     ]
   }

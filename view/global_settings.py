@@ -4,6 +4,10 @@ from textual.widgets import Static, Button
 from textual.containers import Vertical
 
 class GlobalSettingsScreen(Screen):
+    BINDINGS = [
+        ("escape", "close", "关闭"),
+    ]
+
     CSS = """
     GlobalSettingsScreen { 
         align: center middle; 
@@ -45,9 +49,10 @@ class GlobalSettingsScreen(Screen):
     def compose(self):
         with Vertical(id="global_settings_box"):
             yield Static("全局因果参数微调", classes="title")
+            yield Static("按 ESC 关闭", classes="title")
             yield Button("切换真理视界", id="toggle_debug", classes="item_btn")
             yield Button("归置世界常数倍率", id="reset_corruption", classes="item_btn")
-            yield Button("返回游戏世界", id="close_settings_btn")
+            yield Button("[ESC] 返回游戏世界", id="close_settings_btn")
 
     def on_mount(self):
         self.update_labels()
@@ -60,11 +65,9 @@ class GlobalSettingsScreen(Screen):
 
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "close_settings_btn":
-            self.app.pop_screen()
+            self.action_close()
+            return
             
-            if hasattr(self.app, "game_play_screen"):
-                self.app.game_play_screen.refresh_ui()
-                
         btn_id = event.button.id
         engine = self.app.engine
 
@@ -77,32 +80,24 @@ class GlobalSettingsScreen(Screen):
             engine.settings["corruption_rate"] = 1.0
             self.update_labels()
             self.notify("世界常识常数已重置为基础权值 (1.0x)")
-            
-        elif btn_id == "close_settings_btn":
-            # 1. 先安全地把当前的设置屏自己关掉
-            self.app.pop_screen()
-            
-            # 2. 🛡️ 核心安全检查：看看目前舞台上是不是空了（黑屏危机预警）
-            # 如果发现舞台上已经没有主要大屏幕了，我们主动把该露出的屏幕推进去
-            if len(self.app.screen_stack) <= 1: # 1 代表只剩下底层根画布
-                
-                # 检查大发动机，看看哪个屏幕是当前应该活着的
-                # 如果引擎已经有了游戏状态，说明玩家正在局内，我们送他回游戏
-                if hasattr(self.app.engine, "state") and self.app.engine.state is not None:
-                    self.app.push_screen(self.app.game_play_screen)
-                    self.app.game_play_screen.refresh_ui()
-                else:
-                    # 如果没有游戏状态，说明玩家是在主菜单点进来的，送他回主菜单
-                    self.app.push_screen(self.app.main_menu_screen)
+
+    def action_close(self):
+        self.app.pop_screen()
+        
+        if len(self.app.screen_stack) <= 1:
+            if hasattr(self.app.engine, "state") and self.app.engine.state is not None:
+                self.app.push_screen(self.app.game_play_screen)
+                self.app.game_play_screen.refresh_ui()
             else:
-                # 3. 如果舞台底下还有人排队，说明正常的栈还在，放心双向动态刷新
-                if hasattr(self.app, "game_play_screen"):
-                    try:
-                        self.app.game_play_screen.refresh_ui()
-                    except Exception:
-                        pass
-                if hasattr(self.app, "main_menu_screen"):
-                    try:
-                        self.app.main_menu_screen.check_save_file()
-                    except Exception:
-                        pass
+                self.app.push_screen(self.app.main_menu_screen)
+        else:
+            if hasattr(self.app, "game_play_screen"):
+                try:
+                    self.app.game_play_screen.refresh_ui()
+                except Exception:
+                    pass
+            if hasattr(self.app, "main_menu_screen"):
+                try:
+                    self.app.main_menu_screen.check_save_file()
+                except Exception:
+                    pass

@@ -19,6 +19,13 @@ class MenuButton(Button):
 # 1. 核心：主菜单视窗 (MainMenuScreen)
 # ==========================================
 class MainMenuScreen(Screen):
+    BINDINGS = [
+        ("1", "new_game", "新游戏"),
+        ("2", "load_game", "读取游戏"),
+        ("3", "settings", "设置"),
+        ("4", "exit", "退出"),
+    ]
+
     CSS = """
     MainMenuScreen { 
         align: center middle; 
@@ -69,6 +76,27 @@ class MainMenuScreen(Screen):
             yield MenuButton("[2] 激活旧的世界线断点 (Load Game)", id="btn_load_game")
             yield MenuButton("[3] 调整真理规则参数 (Settings)", id="btn_settings")
             yield MenuButton("[4] 强行断开魔力连接 (Exit)", id="btn_exit")
+            yield Static("使用 1-4 数字键选择，或用鼠标点击", id="menu_hint", classes="subtitle")
+
+    def action_new_game(self):
+        from engine.engine import GameState
+        self.app.engine.state = GameState()
+        self.app.push_screen(NamingScreen())
+
+    def action_load_game(self):
+        if self.app.engine.load_game(1):
+            self.notify("旧的世界线已重构，正在同步时空...", title="系统")
+            self.app.pop_screen()
+            self.app.push_screen(self.app.game_play_screen)
+            self.app.game_play_screen.refresh_ui()
+        else:
+            self.notify("读取时空断点失败，数据可能遭到了常识篡改。", title="错误")
+
+    def action_settings(self):
+        self.app.push_screen(GlobalSettingsScreen())
+
+    def action_exit(self):
+        self.app.push_screen(QuitConfirmScreen())
 
     def on_mount(self):
         """每次主菜单显示时，动态扫描是否存在存档文件"""
@@ -120,6 +148,11 @@ class MainMenuScreen(Screen):
 # 2. 真实的物理存档选择器 (SaveSelectorScreen)
 # ==========================================
 class SaveSelectorScreen(Screen):
+    BINDINGS = [
+        ("escape", "cancel", "取消"),
+        ("enter", "select", "选择"),
+    ]
+
     CSS = """
     SaveSelectorScreen { 
         align: center middle; 
@@ -165,7 +198,8 @@ class SaveSelectorScreen(Screen):
         with Vertical(id="selector_box"):
             yield Static("💾 存档槽位", classes="sel_title")
             yield ListView(id="save_list")
-            yield Button("关闭视窗", id="btn_cancel")
+            yield Button("[ESC] 关闭视窗", id="btn_cancel")
+            yield Static("使用 ↑↓ 选择，Enter 确认，ESC 关闭", id="save_hint", classes="sel_title")
 
     def on_mount(self):
         """动态渲染真实存在的存档"""
@@ -205,6 +239,23 @@ class SaveSelectorScreen(Screen):
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "btn_cancel":
             self.app.pop_screen()
+
+    def action_cancel(self):
+        self.app.pop_screen()
+
+    def action_select(self):
+        list_view = self.query_one("#save_list", ListView)
+        selected_item = list_view.highlighted_child
+        if selected_item and not selected_item.disabled:
+            slot_id_str = selected_item.id
+            slot_idx = int(slot_id_str.split("_")[1])
+            success = self.app.engine.load_game(slot_idx)
+            if success:
+                self.notify(f"世界线断点 [{slot_idx}] 读取成功！", title="💾 加载完成")
+                self.app.pop_screen()
+                self.app.action_start_gameplay()
+            else:
+                self.notify(f"糟了！断点数据读取失败。", severity="error", title="错误")
 
 
 # ==========================================
@@ -328,6 +379,12 @@ class SettingsScreen(Screen):
 # 4. 完美退出弹窗 (QuitConfirmScreen)
 # ==========================================
 class QuitConfirmScreen(Screen):
+    BINDINGS = [
+        ("y", "confirm", "确认退出"),
+        ("n", "cancel", "取消"),
+        ("escape", "cancel", "取消"),
+    ]
+
     CSS = """
     QuitConfirmScreen { 
         align: center middle; 
@@ -384,15 +441,22 @@ class QuitConfirmScreen(Screen):
         with Vertical(id="confirm_box"):
             yield Static("⚠️ 警告", classes="confirm_title")
             yield Static("你确定要离开游戏吗？\n当前未保存的进度将会丢失！", classes="confirm_text")
+            yield Static("按 Y 确认退出，N 或 ESC 取消", id="quit_hint", classes="confirm_text")
             with Horizontal(id="btn_box"):
-                yield Button("强行跑路", id="btn_yes", classes="choice_btn")
-                yield Button("容我想想", id="btn_no", classes="choice_btn")
+                yield Button("[Y] 强行跑路", id="btn_yes", classes="choice_btn")
+                yield Button("[N] 容我想想", id="btn_no", classes="choice_btn")
 
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "btn_yes":
             self.app.exit()
         elif event.button.id == "btn_no":
             self.app.pop_screen()
+
+    def action_confirm(self):
+        self.app.exit()
+
+    def action_cancel(self):
+        self.app.pop_screen()
 
 
 # ==========================================

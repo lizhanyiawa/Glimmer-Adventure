@@ -5,6 +5,11 @@ from textual.containers import Vertical
 from view.game_menu import GamePlayScreen
 
 class NamingScreen(Screen):
+    BINDINGS = [
+        ("enter", "confirm", "确认"),
+        ("escape", "cancel", "取消"),
+    ]
+
     CSS = """
     NamingScreen { 
         align: center middle; 
@@ -45,20 +50,27 @@ class NamingScreen(Screen):
             yield Static("世界线观测登记系统", classes="label")
             yield Static("请输入你在该崩溃世界中的真名:", classes="label")
             yield Input(placeholder="在此处刻录你的名字...", id="name_input")
-            yield Button("确认并绑定因果协议", id="confirm_name_btn")
+            yield Static("按 Enter 确认，ESC 取消", classes="label")
+            yield Button("[Enter] 确认并绑定因果协议", id="confirm_name_btn")
 
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "confirm_name_btn":
-            player_name = self.query_one("#name_input", Input).value
-            
-            self.app.engine.set_player_name(player_name)
-            
-            real_name = self.app.engine.state.stats["player_name"]
-            self.notify(f"因果契约已达成：{real_name}", title="系统")
-            
-            self.app.pop_screen()  
-            self.app.pop_screen()  
-            
-            game_screen = self.app.game_play_screen
-            game_screen.engine = self.app.engine
-            self.app.push_screen(game_screen)
+            self.action_confirm()
+
+    def action_confirm(self):
+        player_name = self.query_one("#name_input", Input).value
+        
+        self.app.engine.set_player_name(player_name)
+        
+        real_name = self.app.engine.state.stats["player_name"]
+        self.notify(f"因果契约已达成：{real_name}", title="系统")
+        
+        self.app.pop_screen()  
+        self.app.pop_screen()  
+        
+        game_screen = self.app.game_play_screen
+        game_screen.engine = self.app.engine
+        self.app.push_screen(game_screen)
+
+    def action_cancel(self):
+        self.app.pop_screen()

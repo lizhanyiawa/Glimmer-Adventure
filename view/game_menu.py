@@ -57,6 +57,17 @@ class LocationWidget(Static):
 # 2. 真正联动局内主视窗
 # ==========================================
 class GamePlayScreen(Screen):
+    BINDINGS = [
+        ("1", "option1", "选项 1"),
+        ("2", "option2", "选项 2"),
+        ("3", "option3", "选项 3"),
+        ("4", "option4", "选项 4"),
+        ("p", "profile", "人物详情"),
+        ("s", "save", "保存"),
+        ("o", "settings", "设置"),
+        ("escape", "menu", "返回菜单"),
+    ]
+
     CSS = """
     GamePlayScreen { padding: 1; background: #0b0c10; }
     #status_bar { height: 3; background: #1f2833; border: solid #45f3ff; margin-bottom: 1; }
@@ -97,14 +108,14 @@ class GamePlayScreen(Screen):
 
         with Horizontal(id="bottom_console"):
             with Container(id="story_options"):
-                yield Button("选项 1", id="opt1", classes="opt_btn")
-                yield Button("选项 2", id="opt2", classes="opt_btn")
-                yield Button("选项 3", id="opt3", classes="opt_btn")
-                yield Button("选项 4", id="opt4", classes="opt_btn")
+                yield Button("[1] 选项 1", id="opt1", classes="opt_btn")
+                yield Button("[2] 选项 2", id="opt2", classes="opt_btn")
+                yield Button("[3] 选项 3", id="opt3", classes="opt_btn")
+                yield Button("[4] 选项 4", id="opt4", classes="opt_btn")
             with Container(id="system_options"):
-                yield Button(" 人物详情 / 背包", id="btn_profile", classes="sys_btn")
-                yield Button(" 刻录当前世界线断点 (Save)", id="btn_save", classes="sys_btn")
-                yield Button(" 游戏设置", id="btn_menu_settings", classes="sys_btn")
+                yield Button("[P] 人物详情 / 背包", id="btn_profile", classes="sys_btn")
+                yield Button("[S] 刻录当前世界线断点 (Save)", id="btn_save", classes="sys_btn")
+                yield Button("[O] 游戏设置", id="btn_menu_settings", classes="sys_btn")
 
     def on_mount(self):
         """游戏大画面挂载时，接入大后方全局引擎"""
@@ -199,6 +210,40 @@ class GamePlayScreen(Screen):
                 
                 # 刷新整个局内UI，完成时空跃迁
                 self.refresh_ui()
+
+    def action_option1(self):
+        self.action_option(0)
+
+    def action_option2(self):
+        self.action_option(1)
+
+    def action_option3(self):
+        self.action_option(2)
+
+    def action_option4(self):
+        self.action_option(3)
+
+    def action_option(self, idx):
+        if idx < len(self.current_visible_options):
+            chosen_opt = self.current_visible_options[idx]
+            self.app.engine.select_option(chosen_opt)
+            self.query_one("#history_box", Log).write_line(f" > 降临者选择: {chosen_opt['text']}")
+            self.refresh_ui()
+
+    def action_profile(self):
+        self.app.push_screen(CharacterProfileScreen())
+
+    def action_save(self):
+        if self.app.engine.save_game(1):
+            self.notify("当前时空断点已成功刻录入磁盘。", title="系统")
+        else:
+            self.notify("刻录失败，检测到未知因果抗性。", title="错误")
+
+    def action_settings(self):
+        self.app.push_screen(GlobalSettingsScreen())
+
+    def action_menu(self):
+        self.app.pop_screen()
 
 # ==========================================
 # 3. 完美联动的设置与人物详情面板

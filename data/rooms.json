@@ -26,6 +26,12 @@
     "title": "破旧茅草屋",
     "style": "normal",
     "description": "你走近床头柜，俯身仔细观察那盏蜡烛。\n烛台是粗糙的铁质，上面刻着一些你看不懂的纹路。蜡烛本身似乎不是普通的蜡——火焰是淡蓝色的，而且燃烧时没有一丝烟。\n床头柜的抽屉虚掩着，里面似乎有什么东西。",
+    "description_alt": [
+      {
+        "if": { "flags": { "candle_blown": true } },
+        "text": "你走近床头柜。那盏蜡烛已经被吹灭了，只剩一个铁质烛台留在那里。屋子里变得更加昏暗了。"
+      }
+    ],
     "options": [
       {
         "text": "【探索】打开床头柜的抽屉",
@@ -35,9 +41,25 @@
       {
         "text": "【探索】尝试吹灭蜡烛",
         "target_room": "thatched_hut_candle",
+        "require": { "flags": { "candle_blown": false } },
+        "hidden_text": "蜡烛已熄灭",
         "effects": {
           "flags": {
             "candle_blown": true
+          }
+        }
+      },
+      {
+        "text": "【探索】重新点燃蜡烛",
+        "target_room": "thatched_hut_candle",
+        "require": { 
+          "flags": { "candle_blown": true },
+          "items": { "has": "lighter" }
+        },
+        "hidden_text": "你需要打火机来点火",
+        "effects": {
+          "flags": {
+            "candle_blown": false
           }
         }
       },

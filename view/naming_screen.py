@@ -50,9 +50,15 @@ class NamingScreen(Screen):
         with Vertical(id="naming_box"):
             yield Static("命名", classes="label")
             yield Static("输入你的名字:", classes="label")
-            yield Input(placeholder="", id="name_input")
+            inp = Input(placeholder="", id="name_input")
+            inp.submit_on_wrap = True  # 确保在输入框内按回车能触发提交
+            yield inp
             yield Static("Enter 确认，ESC 取消", classes="label")
             yield Button("[Enter] 确认", id="confirm_name_btn")
+
+    @on(Input.Submitted, "#name_input")
+    def handle_submit(self):
+        self.action_confirm()
 
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "confirm_name_btn":

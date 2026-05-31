@@ -3,7 +3,7 @@ from textual.widgets import Static
 from textual import work
 import asyncio
 
-from engine.effects import TypewriterLog
+from engine.effects import TypewriterLog, FXManager
 
 class TransitionScreen(Screen):
     BINDINGS = [
@@ -50,8 +50,11 @@ class TransitionScreen(Screen):
         widget = self.query_one("#trans_text", TypewriterLog)
         prompt = self.query_one("#trans_prompt", Static)
 
+        # 初始清空
+        widget.update("")
+        
         lines = [
-            "[dim]高数课上，老师在讲台上滔滔不绝地推导着傅里叶变换...[/dim]",
+            "[dim]高数课上，老师在讲台上滔滔不绝地推导着傅里叶变换....[/dim]",
             "[dim]你趴在桌上，眼皮越来越重。[/dim]",
             "[dim]讲台上的声音渐渐远去，变成了模糊的嗡鸣...[/dim]",
             "[dim]. . .[/dim]",
@@ -74,8 +77,12 @@ class TransitionScreen(Screen):
             self._cont.clear()
             await self._cont.wait()
 
+        # 逐行扫描消失效果 (调用封装好的特效)
         prompt.update("")
+        await FXManager.play_opacity_fade(widget, duration=0.8, steps=8)
+        
         await asyncio.sleep(0.5)
+        
         self.app.pop_screen()
         from view.game_menu import GamePlayScreen
         self.app.push_screen(GamePlayScreen())

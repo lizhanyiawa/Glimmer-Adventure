@@ -73,6 +73,34 @@ class InventoryScreen(Screen):
         text-style: bold;
         margin-bottom: 1;
     }
+    #detail_action_box {
+        margin-top: 1;
+        height: auto;
+    }
+    .action_btn {
+        width: 100%;
+        margin-bottom: 1;
+        border: none;
+        background: #11141e;
+        color: #66fcf1;
+    }
+    .action_btn:hover {
+        background: #66fcf1;
+        color: #0b0c10;
+        text-style: bold;
+    }
+    #btn_discard {
+        background: #1a0505;
+        color: #ff5555;
+    }
+    #btn_discard:hover {
+        background: #ff5555;
+        color: white;
+    }
+    #btn_discard:disabled {
+        background: #111111;
+        color: #333333;
+    }
     .detail_type {
         color: #ffaa00;
         margin-bottom: 1;
@@ -113,7 +141,11 @@ class InventoryScreen(Screen):
 
             with Horizontal(id="inv_main"):
                 yield ScrollableContainer(id="item_list")
-                yield Static("", id="item_detail")
+                with Vertical(id="item_detail_box"):
+                    yield Static("", id="item_detail")
+                    with Vertical(id="detail_action_box"):
+                        yield Button("使用", id="btn_use", classes="action_btn")
+                        yield Button("丢弃", id="btn_discard", classes="action_btn")
 
             with Vertical(id="inv_footer"):
                 yield Static("↑↓ 选择物品  ·  [ 关闭 ] 点击下方按钮或按 ESC", classes="inv_title")
@@ -168,13 +200,45 @@ class InventoryScreen(Screen):
         detail = self.query_one("#item_detail", Static)
         detail.update("\n".join(lines))
 
+        # 刷新操作按钮状态
+        btn_discard = self.query_one("#btn_discard", Button)
+        # 带有 quest 标签或 type 为 key 的物品不能丢弃
+        is_quest = item.get("type") == "quest" or item.get("type") == "key" or item.get("is_important", False)
+        btn_discard.disabled = is_quest
+        if is_quest:
+            btn_discard.label = "丢弃 (重要物品)"
+        else:
+            btn_discard.label = "丢弃"
+
     def on_button_pressed(self, event: Button.Pressed):
         btn_id = event.button.id
         if btn_id == "close_inv_btn":
             self.action_close()
+        elif btn_id == "btn_discard":
+            self.action_discard()
         elif btn_id.startswith("item_"):
             index = int(btn_id.split("_")[1])
             self._select(index)
+
+    def action_discard(self):
+        if not self._items or self._selected >= len(self._items):
+            return
+        
+        item = self._items[self._selected]
+        inv_mgr = InventoryManager(self.app.engine.state)
+        
+        if inv_mgr.remove(item["id"], 1):
+            self.notify(f"已丢弃 {item['name']}")
+            # 重新加载列表
+            self._items = inv_mgr.all()
+            self._build_item_list()
+            
+            if not self._items:
+                self.query_one("#item_detail", Static).update("")
+                self.query_one("#btn_discard", Button).disabled = True
+            else:
+                self._selected = min(self._selected, len(self._items) - 1)
+                self._select(self._selected)
 
     def on_click(self, event):
         if event.control is self:

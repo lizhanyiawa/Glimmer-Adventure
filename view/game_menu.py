@@ -1,17 +1,43 @@
 import json
 import os
 from textual.screen import Screen
-from textual.widgets import Static, Button, RichLog
+from textual.widgets import Static, Button, RichLog, ProgressBar
 from textual.containers import Horizontal, Vertical, Container
 from textual.events import Key
-from textual import on
+from textual import on, work
 from rich.text import Text
 
 from engine.effects import TypewriterLog
 
 class LocationWidget(Static):
+    DEFAULT_CLASSES = "location_widget"
     def update_location(self, location: str):
         self.update(f"位置: {location}")
+
+class StatBar(Vertical):
+    """状态栏显示 HP 和 SAN"""
+    DEFAULT_CLASSES = "stat_bar"
+    
+    def __init__(self, label: str, value: int, max_value: int, color: str, **kwargs):
+        super().__init__(**kwargs)
+        self._label_text = label
+        self._color = color
+        self._value = value
+        self._max_value = max_value
+
+    def compose(self):
+        yield Static(f"{self._label_text}: {self._value}/{self._max_value}", id=f"{self.id}_label")
+        yield ProgressBar(total=self._max_value, show_eta=False, show_percentage=False, id=f"{self.id}_bar")
+
+    def on_mount(self):
+        self.query_one(ProgressBar).update(progress=self._value)
+        self.query_one(ProgressBar).styles.accent = self._color
+
+    def update_stat(self, value: int, max_value: int):
+        self._value = value
+        self._max_value = max_value
+        self.query_one(Static).update(f"{self._label_text}: {self._value}/{self._max_value}")
+        self.query_one(ProgressBar).update(total=max_value, progress=value)
 
 # 游戏主界面
 class GamePlayScreen(Screen):
@@ -32,23 +58,55 @@ class GamePlayScreen(Screen):
     GamePlayScreen {
         padding: 1;
         background: #0b0c10;
+        color: #c5c6c7;
     }
     #status_bar {
-        height: 3;
+        height: 5;
         background: #1f2833;
         border: solid #45f3ff;
         margin-bottom: 1;
+        padding: 0 1;
     }
     #status_layout {
         height: 100%;
-        align: center middle;
     }
-    LocationWidget {
+    #stats_left {
+        width: 30%;
+        height: 100%;
+        padding: 0 1;
+    }
+    #location_center {
+        width: 40%;
+        height: 100%;
+        content-align: center middle;
+    }
+    #stats_right {
+        width: 30%;
+        height: 100%;
+        padding: 0 1;
+        content-align: right middle;
+    }
+    .stat_bar {
+        height: 2;
+        margin: 0;
+    }
+    .stat_bar ProgressBar {
+        height: 1;
+        margin: 0;
+    }
+    .stat_bar Static {
+        text-style: bold;
+    }
+    .location_widget {
         color: #ffaa00;
         text-align: center;
         content-align: center middle;
         text-style: bold;
         width: 100%;
+    }
+    .status_tag {
+        color: #66fcf1;
+        text-align: right;
     }
     #main_viewport {
         height: 16;
@@ -132,6 +190,11 @@ class GamePlayScreen(Screen):
         color: #0b0c10;
         text-style: bold;
     }
+    #btn_diary:disabled {
+        background: #1f2833;
+        color: #555555;
+        text-style: none;
+    }
     #btn_save:hover {
         background: #00ff66;
         color: #0b0c10;
@@ -145,9 +208,20 @@ class GamePlayScreen(Screen):
     """
 
     def compose(self):
+        engine = self.app.engine
+        stats = engine.state.stats
+
         with Container(id="status_bar"):
             with Horizontal(id="status_layout"):
-                yield LocationWidget("位置: 加载中...", id="lbl_location")
+                with Vertical(id="stats_left"):
+                    yield StatBar("HP", stats.get("hp", 100), stats.get("max_hp", 100), "#ff0000", id="pb_hp")
+                    yield StatBar("SAN", stats.get("san", 100), 100, "#00ff00", id="pb_san")
+                with Container(id="location_center"):
+                    yield LocationWidget("位置: 加载中...", id="lbl_location")
+                with Vertical(id="stats_right"):
+                    yield Static(f"ATK: {stats.get('attack', 0)}  DEF: {stats.get('defense', 0)}", classes="status_tag")
+                    yield Static(f"INT: {stats.get('intelligence', 0)}  AGI: {stats.get('agility', 0)}", classes="status_tag")
+                    yield Static(f"COR: {stats.get('corruption', 0)}%", classes="status_tag")
 
         with Horizontal(id="main_viewport"):
             yield TypewriterLog("", id="story_box")
@@ -173,6 +247,28 @@ class GamePlayScreen(Screen):
     def on_mount(self):
         self.call_after_refresh(self.load_current_room)
         self._refresh_diary_button()
+        self._update_ui_colors()
+
+    def _update_ui_colors(self):
+        """根据 SAN 值动态改变界面颜色"""
+        san = self.app.engine.state.stats.get("san", 100)
+        
+        # 默认颜色
+        bg_color = "#0b0c10"
+        border_color = "#45f3ff"
+        
+        if san < 30:
+            # 疯狂状态：暗红色背景，紫色边框
+            bg_color = "#1a0505"
+            border_color = "#ff007f"
+        elif san < 60:
+            # 焦虑状态：深紫色背景，橙色边框
+            bg_color = "#0f0c1a"
+            border_color = "#ffaa00"
+            
+        self.styles.background = bg_color
+        self.query_one("#status_bar").styles.border = ("solid", border_color)
+        self.query_one("#story_box").styles.border = ("solid", border_color)
 
     def _refresh_diary_button(self):
         state = self.app.engine.state
@@ -199,6 +295,12 @@ class GamePlayScreen(Screen):
     def load_current_room(self):
         engine = self.app.engine
         room_id = engine.state.room_id
+        stats = engine.state.stats
+
+        # 更新状态栏数值
+        self.query_one("#pb_hp", StatBar).update_stat(stats.get("hp", 100), stats.get("max_hp", 100))
+        self.query_one("#pb_san", StatBar).update_stat(stats.get("san", 100), 100)
+        self._update_ui_colors()
 
         room_data = self.load_room_from_file(room_id)
         if not room_data:

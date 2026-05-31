@@ -253,6 +253,15 @@ class GameEngine:
             if self.state.flags.get(flag_key, False) != expected_bool:
                 return False
 
+        # 检查物品要求
+        item_reqs = reqs.get("items", {})
+        if item_reqs:
+            inv_mgr = InventoryManager(self.state)
+            # has: 检查是否有特定ID的物品
+            has_id = item_reqs.get("has")
+            if has_id and not inv_mgr.has(has_id):
+                return False
+
         return True
 
     def resolve_room_description(self, room_data: Dict[str, Any]) -> str:

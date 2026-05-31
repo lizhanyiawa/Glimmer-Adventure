@@ -83,8 +83,8 @@ class MainMenuScreen(Screen):
         if self.app.engine.load_game(1):
             self.notify("存档读取成功")
             self.app.pop_screen()
-            self.app.push_screen(self.app.game_play_screen)
-            self.app.game_play_screen.refresh_ui()
+            from view.game_menu import GamePlayScreen
+            self.app.push_screen(GamePlayScreen())
         else:
             self.notify("读取存档失败", title="错误")
 
@@ -100,7 +100,10 @@ class MainMenuScreen(Screen):
     # 检查存档是否存在，无存档则禁用读取按钮
     def check_save_file(self):
         has_save = os.path.exists("saves/slot_1.json")
-        load_btn = self.query_one("#btn_load_game", MenuButton)
+        try:
+            load_btn = self.query_one("#btn_load_game", MenuButton)
+        except Exception:
+            return
         if not has_save:
             load_btn.disabled = True
             load_btn.label = "[2] 读取游戏 (无存档)"
@@ -120,8 +123,8 @@ class MainMenuScreen(Screen):
             if self.app.engine.load_game(1):
                 self.notify("存档读取成功")
                 self.app.pop_screen()
-                self.app.push_screen(self.app.game_play_screen)
-                self.app.game_play_screen.refresh_ui()
+                from view.game_menu import GamePlayScreen
+                self.app.push_screen(GamePlayScreen())
             else:
                 self.notify("读取存档失败", title="错误")
 

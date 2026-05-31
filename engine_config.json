@@ -1,6 +1,10 @@
 {
-    "debug_mode": false,
-    "text_speed": "normal",
+    "debug_mode": true,
+    "text_speed": "fast",
     "corruption_rate": 1.0,
-    "sound_enabled": false
+    "sound_enabled": false,
+    "skip_intro": true,
+    "confirm_return": true,
+    "confirm_exit": true,
+    "confirm_save": true
 }

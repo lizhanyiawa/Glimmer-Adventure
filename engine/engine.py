@@ -2,34 +2,36 @@ import os
 import json
 import datetime
 from typing import Dict, Any, List
+from engine.inventory import InventoryManager
 
 # 玩家状态管理
 class GameState:
     def __init__(self):
-        self.room_id: str = "start_classroom"  # 当前房间ID
+        self.room_id: str = "thatched_hut"  # 当前房间ID
         self.play_time: float = 0.0            # 游玩时间
         self.last_saved: str = ""              # 上次保存时间
 
         # 属性
         self.stats: Dict[str, Any] = {
-            "energy_level": 1,
-            "logic_mind": 99,
-            "magic_power": 0,
-            "martial_qi": 0,
-            "tech_level": 5,
+            "attack": 5,
+            "defense": 3,
+            "intelligence": 5,
+            "agility": 5,
             "hp": 100,
             "max_hp": 100,
             "san": 100,
             "corruption": 0
         }
 
-        # 物品栏
         self.inventory: List[Dict[str, Any]] = [
-            {"id": "electric_license", "name": "低压电工证", "desc": "证书。", "qty": 1},
-            {"id": "electric_pen", "name": "测电笔", "desc": "能感应能量流动。", "qty": 1}
+            {"id": "ballpoint_pen", "name": "圆珠笔", "desc": "一支普通的圆珠笔，不知为何和你一起穿越了。", "type": "misc", "qty": 1}
         ]
 
-        # 剧情标记
+        self.diary: Dict[str, Any] = {
+            "tasks": [],
+            "notes": []
+        }
+
         self.flags: Dict[str, bool] = {
             "met_alice": False,
             "classroom_power_cut": False,
@@ -43,16 +45,56 @@ class GameState:
             "last_saved": self.last_saved,
             "stats": self.stats,
             "inventory": self.inventory,
+            "diary": self.diary,
             "flags": self.flags
         }
 
     def load_dict(self, data: Dict[str, Any]):
-        self.room_id = data.get("room_id", "start_classroom")
-        self.play_time = data.get("play_time", 0.0)
-        self.last_saved = data.get("last_saved", "")
-        self.stats = data.get("stats", self.stats)
-        self.inventory = data.get("inventory", self.inventory)
-        self.flags = data.get("flags", self.flags)
+        if not isinstance(data, dict):
+            return
+
+        self.room_id = str(data.get("room_id", "thatched_hut"))
+
+        pt = data.get("play_time")
+        self.play_time = float(pt) if pt is not None else 0.0
+
+        self.last_saved = str(data.get("last_saved", ""))
+
+        saved_stats = data.get("stats", {})
+        if isinstance(saved_stats, dict):
+            for key in self.stats:
+                if key in saved_stats:
+                    try:
+                        self.stats[key] = type(self.stats[key])(saved_stats[key])
+                    except (ValueError, TypeError):
+                        pass
+            for key in saved_stats:
+                if key not in self.stats:
+                    self.stats[key] = saved_stats[key]
+
+        saved_inv = data.get("inventory", [])
+        if isinstance(saved_inv, list):
+            clean = []
+            for item in saved_inv:
+                if isinstance(item, dict) and "id" in item and "name" in item:
+                    clean.append(item)
+            self.inventory = clean if clean else self.inventory
+
+        saved_flags = data.get("flags", {})
+        if isinstance(saved_flags, dict):
+            for key in self.flags:
+                if key in saved_flags:
+                    self.flags[key] = bool(saved_flags[key])
+            for key in saved_flags:
+                if key not in self.flags:
+                    self.flags[key] = bool(saved_flags[key])
+
+        saved_diary = data.get("diary", {})
+        if isinstance(saved_diary, dict):
+            tasks = saved_diary.get("tasks", [])
+            self.diary["tasks"] = tasks if isinstance(tasks, list) else []
+            notes = saved_diary.get("notes", [])
+            self.diary["notes"] = notes if isinstance(notes, list) else []
 
 
 # 游戏核心逻辑
@@ -65,9 +107,13 @@ class GameEngine:
         # 游戏设置
         self.settings: Dict[str, Any] = {
             "debug_mode": False,
-            "text_speed": "normal",
+            "text_speed": "medium",
             "corruption_rate": 1.0,
-            "sound_enabled": False
+            "sound_enabled": False,
+            "skip_intro": False,
+            "confirm_return": True,
+            "confirm_exit": True,
+            "confirm_save": True
         }
 
         self.ensure_saves_dir()
@@ -85,17 +131,20 @@ class GameEngine:
         for i in range(1, 6):
             file_path = os.path.join(self.saves_dir, f"slot_{i}.json")
             if os.path.exists(file_path):
-                try:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    slots.append({
-                        "slot": i,
-                        "exists": True,
-                        "room_id": data.get("room_id", "?"),
-                        "last_saved": data.get("last_saved", "?"),
-                        "level": data.get("stats", {}).get("energy_level", 1)
-                    })
-                except Exception:
+                if self.validate_save(i):
+                    try:
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                        slots.append({
+                            "slot": i,
+                            "exists": True,
+                            "room_id": data.get("room_id", "?"),
+                            "last_saved": data.get("last_saved", "?"),
+                            "level": data.get("stats", {}).get("attack", 1)
+                        })
+                    except Exception:
+                        slots.append({"slot": i, "exists": False, "corrupted": True})
+                else:
                     slots.append({"slot": i, "exists": False, "corrupted": True})
             else:
                 slots.append({"slot": i, "exists": False})
@@ -115,17 +164,41 @@ class GameEngine:
             return False
 
     # 从指定槽位加载游戏
-    def load_game(self, slot: int) -> bool:
+    def validate_save(self, slot: int) -> bool:
         file_path = os.path.join(self.saves_dir, f"slot_{slot}.json")
         if not os.path.exists(file_path):
             return False
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
+            if not isinstance(data, dict):
+                return False
+            required = ["room_id", "stats", "inventory", "flags"]
+            for key in required:
+                if key not in data:
+                    return False
+            if not isinstance(data.get("stats"), dict):
+                return False
+            if not isinstance(data.get("inventory"), list):
+                return False
+            if not isinstance(data.get("flags"), dict):
+                return False
+            return True
+        except Exception:
+            return False
+
+    def load_game(self, slot: int) -> bool:
+        file_path = os.path.join(self.saves_dir, f"slot_{slot}.json")
+        if not os.path.exists(file_path):
+            return False
+        if not self.validate_save(slot):
+            return False
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
             self.state.load_dict(data)
             return True
-        except Exception as e:
-            print(f"Load failed: {e}")
+        except Exception:
             return False
 
     # 加载设置
@@ -133,7 +206,10 @@ class GameEngine:
         if os.path.exists(self.config_file):
             try:
                 with open(self.config_file, "r", encoding="utf-8") as f:
-                    self.settings.update(json.load(f))
+                    saved = json.load(f)
+                self.settings.update(saved)
+                if self.settings.get("text_speed") not in ("instant", "fast", "medium", "slow"):
+                    self.settings["text_speed"] = "medium"
             except Exception:
                 pass
 
@@ -179,18 +255,47 @@ class GameEngine:
 
         return True
 
+    def resolve_room_description(self, room_data: Dict[str, Any]) -> str:
+        alts = room_data.get("description_alt", [])
+        for alt in alts:
+            cond = alt.get("if", {})
+            match = True
+            for fk, fv in cond.get("flags", {}).items():
+                if self.state.flags.get(fk, False) != fv:
+                    match = False
+                    break
+            for sk, sv in cond.get("stats", {}).items():
+                if self.state.stats.get(sk, 0) < sv:
+                    match = False
+                    break
+            if match:
+                return alt.get("text", room_data.get("description", ""))
+        return room_data.get("description", "")
+
     # 执行选项选择，应用效果并切换房间
     def select_option(self, option: Dict[str, Any]) -> Dict[str, Any]:
         effects = option.get("effects", {})
+        inv_mgr = InventoryManager(self.state)
+
         if effects:
-            # 应用属性变化
             for stat_key, delta in effects.get("stats", {}).items():
                 if stat_key in self.state.stats:
                     self.state.stats[stat_key] = max(0, self.state.stats[stat_key] + delta)
 
-            # 应用标记变化
             for flag_key, new_val in effects.get("flags", {}).items():
                 self.state.flags[flag_key] = new_val
+
+            for item in effects.get("items", {}).get("add", []):
+                inv_mgr.add(
+                    item.get("id", ""),
+                    item.get("name", ""),
+                    item.get("desc", ""),
+                    item.get("type", "misc"),
+                    item.get("qty", 1)
+                )
+
+            for item_id in effects.get("items", {}).get("remove", []):
+                inv_mgr.remove(item_id)
 
         # 切换房间
         next_room = option.get("target_room", self.state.room_id)

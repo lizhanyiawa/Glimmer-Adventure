@@ -1,234 +1,408 @@
 {
-  "start_classroom": {
-    "title": "崩溃高数教室",
+  "thatched_hut": {
+    "title": "破旧茅草屋",
     "style": "normal",
-    "description": "你在空荡荡的教室中醒来。四周一片死寂，魔力散逸的微光在空气中飘忽。讲台上的电线被粗暴地扯断了，散发着危险的火花。\n旁边躺着一位因为魔力枯竭而眼神恍惚的女学徒。",
+    "description": "你躺在一张硬邦邦的木板床上，头顶是低矮的茅草屋顶，几缕月光从缝隙中渗进来。\n床头柜上放着一盏蜡烛，微弱的火光在黑暗中摇曳，勉强照亮了这间狭小的屋子。\n空气中弥漫着干草和泥土的气息。",
     "options": [
       {
-        "text": "【探索】猫着腰，悄悄溜出教室后门",
-        "target_room": "corridor",
+        "text": "【探索】起身查看床头柜上的蜡烛",
+        "target_room": "thatched_hut_candle",
         "effects": {}
       },
       {
-        "text": "【科技】尝试用随身工具修复断掉的电线",
-        "target_room": "start_classroom_powered",
-        "require": {
-          "flags": {
-            "has_license": true
-          }
-        },
-        "effects": {
-          "hp": 10,
-          "corruption": 5,
-          "flags": {
-            "classroom_power_fixed": true
-          }
-        }
+        "text": "【探索】走到窗边看看外面的情况",
+        "target_room": "thatched_hut_window",
+        "effects": {}
       },
       {
-        "text": "【堕落】伸手去抚摸恍惚的女学徒",
-        "target_room": "start_classroom",
-        "effects": {
-          "hp": -20,
-          "corruption": 15,
-          "flags": {
-            "met_alice": true
-          }
-        }
+        "text": "【探索】推开茅草屋的木门",
+        "target_room": "outside_hut",
+        "effects": {}
       }
     ]
   },
 
-  "start_classroom_powered": {
-    "title": "通电的崩溃教室",
+  "thatched_hut_candle": {
+    "title": "破旧茅草屋",
     "style": "normal",
-    "description": "滋滋——断裂的电线在你高超的改装技术下重新咬合。头顶苍白的日光灯忽然亮起，驱散了不可名状的微光。电能激荡，角落里的多媒体投影仪突然亮起，投射出一行血淋淋的教案日志。\n女学徒在强光下痛苦地低吟。",
+    "description": "你走近床头柜，俯身仔细观察那盏蜡烛。\n烛台是粗糙的铁质，上面刻着一些你看不懂的纹路。蜡烛本身似乎不是普通的蜡——火焰是淡蓝色的，而且燃烧时没有一丝烟。\n床头柜的抽屉虚掩着，里面似乎有什么东西。",
     "options": [
       {
-        "text": "【科技】迅速拷贝投影仪上的核心教案日志",
-        "target_room": "start_classroom_powered",
+        "text": "【探索】打开床头柜的抽屉",
+        "target_room": "thatched_hut_drawer",
+        "effects": {}
+      },
+      {
+        "text": "【探索】尝试吹灭蜡烛",
+        "target_room": "thatched_hut_candle",
+        "effects": {
+          "flags": {
+            "candle_blown": true
+          }
+        }
+      },
+      {
+        "text": "【返回】回到床边",
+        "target_room": "thatched_hut",
+        "effects": {}
+      }
+    ]
+  },
+
+  "thatched_hut_drawer": {
+    "title": "破旧茅草屋",
+    "style": "normal",
+    "description": "你拉开抽屉，里面放着一本破旧的日记和一把生锈的钥匙。\n日记的封面已经磨损得看不清字迹，但翻开后，你发现里面的文字歪歪扭扭，像是用炭笔匆忙写下的。\n钥匙上挂着一个木牌，刻着「村口」两个字。",
+    "description_alt": [
+      {
+        "if": { "flags": { "has_diary": true, "has_village_key": true } },
+        "text": "你拉开抽屉，里面空空如也。日记和钥匙都已经被你取走了。"
+      },
+      {
+        "if": { "flags": { "has_diary": true } },
+        "text": "你拉开抽屉，只剩那把生锈的钥匙还躺在里面。日记已经被你取走了。"
+      },
+      {
+        "if": { "flags": { "has_village_key": true } },
+        "text": "你拉开抽屉，那本破旧的日记还在，但钥匙已经被你取走了。"
+      }
+    ],
+    "options": [
+      {
+        "text": "【探索】翻阅那本破旧的日记",
+        "target_room": "thatched_hut_diary",
+        "require": { "flags": { "has_diary": false } },
+        "hidden_text": "日记已取走",
+        "effects": {}
+      },
+      {
+        "text": "【拾取】拿起钥匙",
+        "target_room": "thatched_hut_drawer",
+        "require": { "flags": { "has_village_key": false } },
+        "hidden_text": "钥匙已取走",
+        "effects": {
+          "items": {
+            "add": [
+              {
+                "id": "village_key",
+                "name": "村口钥匙",
+                "desc": "一把生锈的钥匙，木牌上刻着「村口」。",
+                "type": "key",
+                "qty": 1
+              }
+            ]
+          },
+          "flags": {
+            "has_village_key": true
+          }
+        }
+      },
+      {
+        "text": "【返回】回到床边",
+        "target_room": "thatched_hut",
+        "effects": {}
+      }
+    ]
+  },
+
+  "thatched_hut_diary": {
+    "title": "破旧茅草屋",
+    "style": "normal",
+    "description": "你翻开日记，借着烛光阅读。\n日记的主人似乎是一位被流放到此地的学者，他记录了一些关于这个世界的零碎观察：\n\n「这个世界的力量法则与常识相悖。逻辑在这里是一种武器，数学公式可以扭曲现实。」\n「我尝试用微积分构建了一个防御结界，但能量消耗太大，蜡烛快撑不住了。」\n「如果有人看到这本日记，请记住——不要相信任何自称『神』的东西。」\n\n日记的最后一页被撕掉了。",
+    "options": [
+      {
+        "text": "【拾取】把日记收起来",
+        "target_room": "thatched_hut_drawer",
         "effects": {
           "san": -5,
+          "items": {
+            "add": [
+              {
+                "id": "old_diary",
+                "name": "破旧日记",
+                "desc": "一本磨损严重的日记，记录了一位流放学者的观察。",
+                "type": "quest",
+                "qty": 1
+              }
+            ]
+          },
           "flags": {
-            "has_records": true
+            "has_diary": true
           }
         }
       },
       {
-        "text": "【探索】踏入已经通电的幽暗走廊",
-        "target_room": "corridor",
+        "text": "【返回】回到床边",
+        "target_room": "thatched_hut",
         "effects": {}
       }
     ]
   },
 
-  "corridor": {
-    "title": "幽暗学院走廊",
-    "style": "warning",
-    "description": "走廊里弥漫着淡淡的红雾，墙壁上的魔法壁灯一闪一闪，仿佛某种生物的呼吸。这里像一个辐射状的因果迷宫，前方的指示牌分别指向【图书馆】、【实验室】和深处的【礼拜堂】。",
-    "options": [
-      {
-        "text": "【探索】左转，推开落满灰尘的【废弃图书馆】大门",
-        "target_room": "library",
-        "effects": {}
-      },
-      {
-        "text": "【探索】右转，走下台阶前往【地下实验室】",
-        "target_room": "lab",
-        "effects": {}
-      },
-      {
-        "text": "【探索】硬着头皮走向走廊尽头的【废弃礼拜堂】",
-        "target_room": "chapel",
-        "effects": {
-          "corruption": 5
-        }
-      }
-    ]
-  },
-
-  "library": {
-    "title": "废弃图书馆",
+  "thatched_hut_window": {
+    "title": "破旧茅草屋",
     "style": "normal",
-    "description": "书架上堆满了落满灰尘的旧书，空气中弥漫着纸张腐朽的味道。角落里有一张桌子，上面放着一本翻开的笔记。\n这里安静得让人不安。",
+    "description": "你走到窗边，透过木板缝隙向外望去。\n外面是一片漆黑的旷野，一轮巨大的银白色月亮挂在天空——比你在原来世界见过的月亮要大得多。\n远处隐约可以看到几点微弱的灯光，像是一个小村庄。\n更远的地方，一座黑色的高塔轮廓矗立在地平线上，塔顶似乎有红色的光芒在闪烁。",
     "options": [
       {
-        "text": "【探索】翻阅桌上的笔记（似乎是一本禁忌微积分改造指南）",
-        "target_room": "library_secret",
+        "text": "【探索】推开木门，前往那个村庄",
+        "target_room": "outside_hut",
+        "effects": {
+          "flags": {
+            "saw_tower": true
+          }
+        }
+      },
+      {
+        "text": "【返回】回到床边",
+        "target_room": "thatched_hut",
+        "effects": {}
+      }
+    ]
+  },
+
+  "outside_hut": {
+    "title": "茅草屋外",
+    "style": "warning",
+    "description": "你推开吱呀作响的木门，一阵凉风扑面而来。\n茅草屋坐落在一片荒芜的空地上，四周是齐腰高的野草。一条被人踩出来的土路蜿蜒向前，通向远处那个闪烁着灯光的村庄。\n头顶的月亮大得不可思议，月光洒在地上，把一切都镀上了一层银白色。\n你注意到茅草屋的墙上用炭笔画着一些奇怪的符号，像是某种保护标记。",
+    "options": [
+      {
+        "text": "【探索】沿着土路前往村庄",
+        "target_room": "village_entrance",
+        "effects": {}
+      },
+      {
+        "text": "【探索】观察墙上的奇怪符号",
+        "target_room": "outside_hut_runes",
+        "effects": {}
+      },
+      {
+        "text": "【返回】回到茅草屋内",
+        "target_room": "thatched_hut",
+        "effects": {}
+      }
+    ]
+  },
+
+  "outside_hut_runes": {
+    "title": "茅草屋外",
+    "style": "system",
+    "description": "你凑近墙壁仔细观察那些炭笔符号。\n它们看起来像是某种数学公式和古代符文的混合体——有微积分符号，也有你不认识的象形文字。\n这些符号以门框为中心，呈放射状排列。你隐约能感觉到一股微弱的力量从符号中散发出来，像是一层结界。\n也许这就是日记里提到的「防御结界」。",
+    "options": [
+      {
+        "text": "【探索】沿着土路前往村庄",
+        "target_room": "village_entrance",
+        "effects": {}
+      },
+      {
+        "text": "【返回】回到茅草屋内",
+        "target_room": "thatched_hut",
+        "effects": {}
+      }
+    ]
+  },
+
+  "village_entrance": {
+    "title": "迷雾村庄入口",
+    "style": "warning",
+    "description": "你沿着土路走了大约十分钟，来到了村庄的入口。\n村口立着一块歪斜的木牌，上面的字迹已经模糊不清。空气中弥漫着淡淡的雾气，月光透过雾气洒下，让整个村庄笼罩在一片诡异的银灰色中。\n村庄里很安静，但你能看到几间屋子的窗户里透出微弱的灯光。\n村口有一口古井，井沿上长满了青苔。",
+    "options": [
+      {
+        "text": "【探索】走进村庄",
+        "target_room": "village_center",
+        "effects": {}
+      },
+      {
+        "text": "【探索】查看村口的古井",
+        "target_room": "village_well",
+        "effects": {}
+      },
+      {
+        "text": "【返回】回到茅草屋",
+        "target_room": "outside_hut",
+        "effects": {}
+      }
+    ]
+  },
+
+  "village_well": {
+    "title": "村口古井",
+    "style": "system",
+    "description": "你走到古井旁，探头向下望去。井水很深，水面反射着月光，像一面镜子。\n奇怪的是，水面映出的不是你的倒影，而是一个模糊的人影——身形和你相似，但似乎穿着不同的衣服。\n井沿上刻着一行小字：「井水映照的不是你的脸，而是你的本质。」\n你感到一阵寒意从脊背升起。",
+    "options": [
+      {
+        "text": "【探索】伸手触碰井水",
+        "target_room": "village_well",
         "effects": {
           "san": -10,
+          "corruption": 5,
           "flags": {
-            "has_license": true
+            "touched_well": true
           }
         }
       },
       {
-        "text": "【探索】在书架间盲目搜索（可能会有危险）",
-        "target_room": "library",
+        "text": "【探索】走进村庄",
+        "target_room": "village_center",
+        "effects": {}
+      },
+      {
+        "text": "【返回】回到茅草屋",
+        "target_room": "outside_hut",
+        "effects": {}
+      }
+    ]
+  },
+
+  "village_center": {
+    "title": "村庄中心",
+    "style": "normal",
+    "description": "你走进村庄，发现这里并不像从远处看的那样荒凉。\n村庄中心有一小片广场，周围散落着几间木屋。其中一间较大的屋子门口挂着一盏灯笼，似乎是某种酒馆或集会场所。\n另一间屋子门口摆着各种瓶瓶罐罐，可能是药铺或炼金工坊。\n广场中央立着一座半人高的石碑，上面刻满了密密麻麻的文字。",
+    "options": [
+      {
+        "text": "【探索】走进挂着灯笼的酒馆",
+        "target_room": "village_tavern",
+        "effects": {}
+      },
+      {
+        "text": "【探索】查看广场中央的石碑",
+        "target_room": "village_monument",
+        "effects": {}
+      },
+      {
+        "text": "【探索】走向那间摆满瓶罐的屋子",
+        "target_room": "village_alchemy",
+        "effects": {}
+      },
+      {
+        "text": "【返回】回到村口",
+        "target_room": "village_entrance",
+        "effects": {}
+      }
+    ]
+  },
+
+  "village_monument": {
+    "title": "村庄中心",
+    "style": "normal",
+    "description": "你走近石碑，发现上面刻的是一种半文半白的奇怪文字，但奇怪的是你居然能读懂大意。\n\n石碑记载了这个村庄的历史：「灰烬村」——曾经是一个繁荣的学者聚居地，直到某一天，一位被称为「逻辑领主」的存在降临，将所有学者的理性变成了武器。\n学者们发现，在这个世界里，数学公式和逻辑推理可以扭曲现实。一些人因此疯狂，另一些人则开始利用这种力量。\n石碑的底部刻着一句话：「逻辑即魔力，知识即力量。」",
+    "options": [
+      {
+        "text": "【探索】走进挂着灯笼的酒馆",
+        "target_room": "village_tavern",
+        "effects": {}
+      },
+      {
+        "text": "【探索】走向那间摆满瓶罐的屋子",
+        "target_room": "village_alchemy",
+        "effects": {}
+      },
+      {
+        "text": "【返回】回到广场",
+        "target_room": "village_center",
+        "effects": {}
+      }
+    ]
+  },
+
+  "village_tavern": {
+    "title": "灰烬酒馆",
+    "style": "normal",
+    "description": "你推开酒馆的木门，一股暖意夹杂着麦酒的气味扑面而来。\n酒馆里只有零星几个客人，每个人都裹在斗篷里，看不清面容。吧台后面站着一个头发花白的老妇人，正用一块破布擦拭着杯子。\n她抬头看了你一眼，眼神里闪过一丝惊讶，但很快恢复了平静。\n「又一个。」她低声嘟囔了一句。",
+    "options": [
+      {
+        "text": "【对话】询问老妇人「又一个」是什么意思",
+        "target_room": "village_tavern_barkeeper",
+        "effects": {}
+      },
+      {
+        "text": "【探索】环顾酒馆里的其他客人",
+        "target_room": "village_tavern",
         "effects": {
-          "hp": -5,
           "san": -3
         }
       },
       {
-        "text": "【撤退】退回学院走廊枢纽",
-        "target_room": "corridor",
+        "text": "【返回】回到广场",
+        "target_room": "village_center",
         "effects": {}
       }
     ]
   },
 
-  "library_secret": {
-    "title": "图书馆阴暗书架",
-    "style": "fade",
-    "description": "当你合上笔记的一瞬间，你脑子里凭空多出了一段关于高压电能与魔力重组的禁忌常识（已获得修复教室电线的资格）。\n同时，由于触碰了禁忌，四周的书架开始像沥青一样溶解流淌，视线逐渐模糊...",
+  "village_tavern_barkeeper": {
+    "title": "灰烬酒馆",
+    "style": "normal",
+    "description": "老妇人放下杯子，用一双浑浊但锐利的眼睛看着你。\n「你身上还带着那边的气息。」她指了指天上，「像你这样的人，每隔一段时间就会出现一个。都是在某天突然在这个世界的某个角落醒来。」\n她顿了顿，压低声音：「大多数人都没能活过第一个月。要么疯了，要么被『那些东西』盯上了。」\n「不过你运气不错，至少醒来的时候不是在野外。茅草屋是以前一个老学者留下的，他设了结界，能保你第一晚的安全。」",
     "options": [
       {
-        "text": "【撤退】强忍着脑部剧痛，摸黑逃回走廊",
-        "target_room": "corridor",
+        "text": "【对话】询问「那些东西」是什么",
+        "target_room": "village_tavern_barkeeper",
+        "effects": {
+          "flags": {
+            "knows_about_monsters": true
+          }
+        }
+      },
+      {
+        "text": "【对话】询问关于这个世界的事情",
+        "target_room": "village_tavern_barkeeper",
+        "effects": {
+          "flags": {
+            "knows_about_world": true
+          }
+        }
+      },
+      {
+        "text": "【返回】回到广场",
+        "target_room": "village_center",
+        "effects": {}
+      }
+    ]
+  },
+
+  "village_alchemy": {
+    "title": "炼金工坊",
+    "style": "system",
+    "description": "你走进这间摆满瓶瓶罐罐的屋子，一股刺鼻的药水味扑面而来。\n架子上排列着各种颜色的液体，有的在冒泡，有的在发光。角落里堆着几本翻烂了的书。\n一个戴着厚厚眼镜的年轻女子正在桌边捣鼓着什么，她抬头看到你，推了推眼镜。\n「哦，新面孔。你是刚从『那边』来的吧？别担心，我不会咬人。」",
+    "options": [
+      {
+        "text": "【对话】和她交谈",
+        "target_room": "village_alchemy_talk",
+        "effects": {}
+      },
+      {
+        "text": "【探索】看看架子上的药水",
+        "target_room": "village_alchemy",
         "effects": {
           "san": -5
         }
-      }
-    ]
-  },
-
-  "lab": {
-    "title": "地下实验室",
-    "style": "system",
-    "description": "实验室的应急灯发出惨白的光。各种仪器散乱地摆放着，一台核心的高能微粒设备仍处于锁死状态，没有足够的电力，它无法动弹半分。",
-    "options": [
-      {
-        "text": "【科技】利用主教学楼的高压电强行激活大型设备",
-        "target_room": "lab_active",
-        "require": {
-          "flags": {
-            "classroom_power_fixed": true
-          }
-        },
-        "effects": {
-          "san": -15,
-          "corruption": 15,
-          "flags": {
-            "lab_core_activated": true
-          }
-        }
       },
       {
-        "text": "【撤退】没有电一切都是白搭，先退回走廊",
-        "target_room": "corridor",
+        "text": "【返回】回到广场",
+        "target_room": "village_center",
         "effects": {}
       }
     ]
   },
 
-  "lab_active": {
-    "title": "暴走的地下实验室",
-    "style": "shake",
-    "description": "轰鸣声大作！随着教室电能的合闸，这台大型机器喷射出紫色的粒子流。屏幕上疯狂弹窗：『常识屏障解构进度：99%』。\n整个实验室在粒子激荡下开始疯狂震颤！",
+  "village_alchemy_talk": {
+    "title": "炼金工坊",
+    "style": "normal",
+    "description": "「我叫莉莉安。」她一边搅拌着桌上冒着绿烟的烧杯，一边说，「这个世界的炼金术和你们那边的化学不太一样——在这里，信念和逻辑本身就是催化剂。」\n她指了指墙上挂着的一张元素周期表，但上面的元素符号都是你从未见过的。\n「如果你对炼金术感兴趣，我可以教你一些基础的东西。不过嘛——」她狡黠地笑了笑，「你得帮我一个忙。东边的森林里有一种发光的蘑菇，我需要一些来做实验。」",
     "options": [
       {
-        "text": "【科技】将拷贝到的核心教案日志插入终端，尝试改写世界常数",
-        "target_room": "lab_active",
-        "require": {
-          "flags": {
-            "has_records": true
-          }
-        },
+        "text": "【接受】答应帮莉莉安找发光蘑菇",
+        "target_room": "village_alchemy_talk",
         "effects": {
-          "hp": 50,
-          "san": 50,
-          "corruption": -30,
           "flags": {
-            "world_saved": true
+            "alchemy_quest": true
           }
         }
       },
       {
-        "text": "【撤退】机器快炸了！狼狈地逃回走廊",
-        "target_room": "corridor",
-        "effects": {
-          "hp": -30
-        }
-      }
-    ]
-  },
-
-  "chapel": {
-    "title": "废弃礼拜堂",
-    "style": "lust",
-    "description": "礼拜堂的彩色玻璃已经碎裂大半，月光洒在残留着暗红痕迹的祭坛上。空气中弥漫着一种令人不安的甜腻气息。\n一尊长着女学徒面孔的怪异神像正慈祥地注视着你。",
-    "options": [
-      {
-        "text": "【堕落】跪在祭坛前，祈求神像赐予不可名状的魔力",
-        "target_room": "chapel",
-        "effects": {
-          "corruption": 30,
-          "san": -20,
-          "flags": {
-            "blessed_by_god": true
-          }
-        }
-      },
-      {
-        "text": "【因果反噬】凝视神像，突然发现神像的脸变成了被你亵渎的艾丽丝！",
-        "target_room": "chapel",
-        "require": {
-          "flags": {
-            "met_alice": true
-          }
-        },
-        "effects": {
-          "hp": -50,
-          "san": -30,
-          "flags": {
-            "alice_curse": true
-          }
-        }
-      },
-      {
-        "text": "【撤退】赶紧离开这个鬼地方",
-        "target_room": "corridor",
+        "text": "【拒绝】现在不是时候",
+        "target_room": "village_center",
         "effects": {}
       }
     ]

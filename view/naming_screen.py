@@ -2,7 +2,7 @@ from textual.screen import Screen
 from textual.widgets import Static, Button, Input
 from textual.containers import Vertical
 
-from view.game_menu import GamePlayScreen
+from view.transition_screen import TransitionScreen
 
 # 命名界面
 class NamingScreen(Screen):
@@ -58,7 +58,6 @@ class NamingScreen(Screen):
         if event.button.id == "confirm_name_btn":
             self.action_confirm()
 
-    # 确认名字并进入游戏
     def action_confirm(self):
         player_name = self.query_one("#name_input", Input).value
         self.app.engine.set_player_name(player_name)
@@ -68,9 +67,7 @@ class NamingScreen(Screen):
         self.app.pop_screen()
         self.app.pop_screen()
 
-        game_screen = self.app.game_play_screen
-        game_screen.engine = self.app.engine
-        self.app.push_screen(game_screen)
+        self.app.push_screen(TransitionScreen())
 
     def action_cancel(self):
         self.app.pop_screen()

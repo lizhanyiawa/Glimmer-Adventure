@@ -4,13 +4,23 @@ import re
 from textual.widgets import Static
 from rich.text import Text
 
+SPEED_PRESETS = {
+    "instant": 0,
+    "fast": 0.01,
+    "medium": 0.03,
+    "slow": 0.06,
+}
+
 # ==========================================
 # 打字机效果
 # ==========================================
 class TypewriterLog(Static):
 
-    def type_text(self, full_text: str, speed: float = 0.02, effect_type: str = "normal", on_complete=None):
+    def type_text(self, full_text: str, speed=0.02, effect_type: str = "normal", on_complete=None):
         self._stop_typewriter()
+
+        if isinstance(speed, str):
+            speed = SPEED_PRESETS.get(speed, 0.03)
 
         if effect_type == "warning":
             full_text = f"[bold red]{full_text}[/bold red]"

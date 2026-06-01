@@ -435,7 +435,8 @@ class GamePlayScreen(Screen):
         if len(self.app.screen_stack) <= 1:
             return
         self.app.pop_screen()
-        self.app.push_screen(self.app.main_menu_screen)
+        if self.app.main_menu_screen not in self.app.screen_stack:
+            self.app.push_screen(self.app.main_menu_screen)
 
     def on_button_pressed(self, event: Button.Pressed):
         btn_id = event.button.id

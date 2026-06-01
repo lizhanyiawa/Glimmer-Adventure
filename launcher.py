@@ -15,8 +15,6 @@ class IsekaiEngine(App):
 
     def pop_screen(self):
         super().pop_screen()
-        if not self.screen_stack:
-            self.push_screen(GamePlayScreen())
 
     def action_start_gameplay(self):
         self.push_screen(GamePlayScreen())

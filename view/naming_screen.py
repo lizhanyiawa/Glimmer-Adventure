@@ -1,6 +1,7 @@
 from textual.screen import Screen
 from textual.widgets import Static, Button, Input
 from textual.containers import Vertical
+from textual import on
 
 from view.transition_screen import TransitionScreen
 
@@ -71,8 +72,6 @@ class NamingScreen(Screen):
         self.notify(f"命名成功: {real_name}", title="系统")
 
         self.app.pop_screen()
-        self.app.pop_screen()
-
         self.app.push_screen(TransitionScreen())
 
     def action_cancel(self):

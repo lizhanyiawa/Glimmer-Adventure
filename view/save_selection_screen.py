@@ -59,8 +59,8 @@ class SaveSelectionScreen(Screen):
             if self.app.engine.load_game(slot):
                 self.notify(f"已加载存档 {slot}")
                 self.app.pop_screen()
-                from view.game_menu import GamePlayScreen
-                self.app.push_screen(GamePlayScreen())
+                from view.brighten_screen import BrightenScreen
+                self.app.push_screen(BrightenScreen())
             else:
                 self.notify("加载失败", title="错误")
 

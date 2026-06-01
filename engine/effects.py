@@ -150,6 +150,23 @@ class FXManager:
             await asyncio.sleep(duration / steps)
         try:
             widget.update("")
-            widget.styles.opacity = 1.0  # 恢复透明度以便下次使用
+            widget.styles.opacity = 1.0
         except Exception:
             pass
+
+    @staticmethod
+    async def play_border_brighten(widget, duration: float = 1.0):
+        """边框由灰暗渐变到亮蓝色的苏醒特效"""
+        border_colors = [
+            "#333333", "#3a3a3a", "#444444", "#4e4e4e",
+            "#555555", "#5a6a7a", "#5a7a8a", "#5599aa",
+            "#45aacc", "#45bbdd", "#45ccee", "#45ddff",
+            "#45e8ff", "#45f3ff",
+        ]
+        step_duration = duration / len(border_colors)
+        for color in border_colors:
+            try:
+                widget.styles.border = ("solid", color)
+            except Exception:
+                pass
+            await asyncio.sleep(step_duration)

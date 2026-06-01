@@ -52,7 +52,7 @@
       {
         "text": "【探索】重新点燃蜡烛",
         "target_room": "thatched_hut_candle",
-        "require": { 
+        "require": {
           "flags": { "candle_blown": true },
           "items": { "has": "lighter" }
         },

@@ -82,9 +82,8 @@ class MainMenuScreen(Screen):
     def action_load_game(self):
         if self.app.engine.load_game(1):
             self.notify("存档读取成功")
-            self.app.pop_screen()
-            from view.game_menu import GamePlayScreen
-            self.app.push_screen(GamePlayScreen())
+            from view.brighten_screen import BrightenScreen
+            self.app.push_screen(BrightenScreen())
         else:
             self.notify("读取存档失败", title="错误")
 
@@ -122,9 +121,8 @@ class MainMenuScreen(Screen):
         elif button_id == "btn_load_game":
             if self.app.engine.load_game(1):
                 self.notify("存档读取成功")
-                self.app.pop_screen()
-                from view.game_menu import GamePlayScreen
-                self.app.push_screen(GamePlayScreen())
+                from view.brighten_screen import BrightenScreen
+                self.app.push_screen(BrightenScreen())
             else:
                 self.notify("读取存档失败", title="错误")
 

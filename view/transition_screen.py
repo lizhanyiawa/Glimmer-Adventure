@@ -77,15 +77,13 @@ class TransitionScreen(Screen):
             self._cont.clear()
             await self._cont.wait()
 
-        # 逐行扫描消失效果 (调用封装好的特效)
         prompt.update("")
         await FXManager.play_opacity_fade(widget, duration=0.8, steps=8)
-        
         await asyncio.sleep(0.5)
-        
+
         self.app.pop_screen()
-        from view.game_menu import GamePlayScreen
-        self.app.push_screen(GamePlayScreen())
+        from view.brighten_screen import BrightenScreen
+        self.app.push_screen(BrightenScreen())
 
     async def _type_line(self, widget, text, speed=0.015):
         done = asyncio.Event()

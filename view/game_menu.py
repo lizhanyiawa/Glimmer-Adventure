@@ -250,14 +250,20 @@ class GamePlayScreen(Screen):
         self._update_ui_colors()
 
     def _update_ui_colors(self):
-        """根据 SAN 值动态改变界面颜色"""
-        san = self.app.engine.state.stats.get("san", 100)
+        """根据 SAN 值或对话状态动态改变界面颜色"""
+        engine = self.app.engine
+        san = engine.state.stats.get("san", 100)
+        is_dialogue = bool(engine.state.dialogue_id)
         
         # 默认颜色
         bg_color = "#0b0c10"
         border_color = "#45f3ff"
         
-        if san < 30:
+        if is_dialogue:
+            # 对话状态：深黄色背景，金黄色边框
+            bg_color = "#1a1a05"
+            border_color = "#ffaa00"
+        elif san < 30:
             # 疯狂状态：暗红色背景，紫色边框
             bg_color = "#1a0505"
             border_color = "#ff007f"
@@ -295,6 +301,7 @@ class GamePlayScreen(Screen):
     def load_current_room(self):
         engine = self.app.engine
         room_id = engine.state.room_id
+        dialogue_id = engine.state.dialogue_id
         stats = engine.state.stats
 
         # 更新状态栏数值
@@ -302,13 +309,28 @@ class GamePlayScreen(Screen):
         self.query_one("#pb_san", StatBar).update_stat(stats.get("san", 100), 100)
         self._update_ui_colors()
 
-        room_data = self.load_room_from_file(room_id)
-        if not room_data:
-            self.query_one("#story_box", TypewriterLog).update(f"[错误] 房间 {room_id} 不存在")
+        node_data = None
+        is_dialogue = False
+        
+        if dialogue_id:
+            node_data = self.load_dialogue_from_file(dialogue_id)
+            is_dialogue = True
+        
+        if not node_data:
+            node_data = self.load_room_from_file(room_id)
+            is_dialogue = False
+
+        if not node_data:
+            self.query_one("#story_box", TypewriterLog).update(f"[错误] 数据不存在 (Room: {room_id}, Dialogue: {dialogue_id})")
             return
 
         # 1. 刷新顶部位置
-        self.query_one("#lbl_location", LocationWidget).update_location(room_data.get("title", room_id))
+        if is_dialogue:
+            room_data = self.load_room_from_file(room_id)
+            location_title = room_data.get("title", room_id) if room_data else "未知地点"
+            self.query_one("#lbl_location", LocationWidget).update_location(f"{location_title} (对话中)")
+        else:
+            self.query_one("#lbl_location", LocationWidget).update_location(node_data.get("title", room_id))
 
         # 2. 【先让按钮闭嘴】：一进房间，不管三七二十一，先把四个按钮全部刷成静默状态
         btn_map = ["opt1", "opt2", "opt3", "opt4"]
@@ -317,19 +339,28 @@ class GamePlayScreen(Screen):
             btn.label = "[·] 聆听常识流动中..."
             btn.disabled = True
 
-        # 3. 呼叫打字机，并且把"等会刷按钮"的口令扔给它
-        story_text = engine.resolve_room_description(room_data)
-        room_style = room_data.get("style", "normal")
-        full_text = f"【 {room_data.get('title', room_id)} 】\n\n{story_text}"
-        
-        # 将故事文本记录到历史记录
-        history_log = self.query_one("#history_box", RichLog)
-        history_log.write(f"[bold white]【 {room_data.get('title', room_id)} 】[/bold white]")
-        history_log.write(story_text)
+        # 3. 呼叫打字机
+        if is_dialogue:
+            speaker = node_data.get("speaker", "???")
+            story_text = node_data.get("text", "")
+            full_text = f"【 {speaker} 】\n\n{story_text}"
+            
+            history_log = self.query_one("#history_box", RichLog)
+            history_log.write(f"[bold cyan]【 {speaker} 】[/bold cyan]")
+            history_log.write(story_text)
+            room_style = "normal"
+        else:
+            story_text = engine.resolve_room_description(node_data)
+            room_style = node_data.get("style", "normal")
+            full_text = f"【 {node_data.get('title', room_id)} 】\n\n{story_text}"
+            
+            history_log = self.query_one("#history_box", RichLog)
+            history_log.write(f"\n[bold white]【 {node_data.get('title', room_id)} 】[/bold white]")
+            history_log.write(story_text)
 
         # 🌟 重点：把用来刷按钮的闭包函数当成 on_complete 参数传过去！
         def show_options_after_typing():
-            self.refresh_options(room_data)
+            self.refresh_options(node_data)
 
         self.query_one("#story_box", TypewriterLog).type_text(
             full_text, 
@@ -337,6 +368,18 @@ class GamePlayScreen(Screen):
             effect_type=room_style, 
             on_complete=show_options_after_typing
         )
+
+    # 从JSON加载对话数据
+    def load_dialogue_from_file(self, dialogue_id: str):
+        try:
+            with open("data/dialogues.json", "r", encoding="utf-8") as f:
+                all_dialogues = json.load(f)
+                dlg_data = all_dialogues.get(dialogue_id)
+                if dlg_data:
+                    return {"id": dialogue_id, **dlg_data}
+        except Exception as e:
+            pass
+        return None
 
     # 从JSON加载房间数据
     def load_room_from_file(self, room_id: str):
@@ -379,11 +422,18 @@ class GamePlayScreen(Screen):
 
     def select_option(self, index: int):
         engine = self.app.engine
-        room_data = self.load_room_from_file(engine.state.room_id)
-        if not room_data:
+        
+        # 确定当前是房间还是对话
+        node_data = None
+        if engine.state.dialogue_id:
+            node_data = self.load_dialogue_from_file(engine.state.dialogue_id)
+        if not node_data:
+            node_data = self.load_room_from_file(engine.state.room_id)
+            
+        if not node_data:
             return
 
-        options = room_data.get("options", [])
+        options = node_data.get("options", [])
         if index >= len(options):
             return
 
@@ -399,14 +449,40 @@ class GamePlayScreen(Screen):
         history_log = self.query_one("#history_box", RichLog)
         history_log.write(f"\n[cyan]> {option.get('text', '')}[/cyan]")
 
-        # 属性变化我们直接用底部的弹窗 notify 或者写进右侧 history_box
+        # 属性变化反馈
         effects = result.get("effects_applied", {})
-        if effects:
-            stats_change = effects.get("stats", {})
-            if stats_change:
-                change_str = ", ".join([f"{k}: {v:+d}" for k, v in stats_change.items()])
-                self.notify(f"因果扭曲：{change_str}", title="状态变更")
-                history_log.write(f"[yellow]状态变更: {change_str}[/yellow]")
+        
+        # 提取 HP, SAN, 以及一般 stats 变化
+        stats_change = effects.get("stats", {})
+        
+        # 为了更直观，我们要把直接写在 root 下的 'hp' 和 'san' 也合并到计算中（之前写法是支持直接写在 effects 里的）
+        # 比如 effects: { "hp": 10, "san": 5 }
+        for direct_stat in ["hp", "max_hp", "san", "corruption", "attack", "defense", "intelligence", "agility"]:
+            if direct_stat in effects:
+                stats_change[direct_stat] = effects[direct_stat]
+
+        if stats_change:
+            change_msgs = []
+            for k, v in stats_change.items():
+                name_map = {
+                    "hp": "生命", "max_hp": "最大生命", "san": "理智", "corruption": "腐化",
+                    "attack": "攻击", "defense": "防御", "intelligence": "智力", "agility": "敏捷"
+                }
+                display_name = name_map.get(k, k)
+                sign = "+" if v > 0 else ""
+                color = "green" if v > 0 else "red"
+                if k == "corruption":  # 腐化增加是坏事
+                    color = "red" if v > 0 else "green"
+                    
+                change_msgs.append(f"[{color}]{display_name} {sign}{v}[/{color}]")
+                
+            if change_msgs:
+                change_str = ", ".join(change_msgs)
+                # 在历史记录中高亮显示
+                history_log.write(f"✦ 状态变更: {change_str}")
+                # 底部弹窗提示
+                plain_str = change_str.replace("[green]", "").replace("[/green]", "").replace("[red]", "").replace("[/red]", "")
+                self.notify(f"状态发生变化：{plain_str}", title="提示", timeout=3)
 
         self.load_current_room()
         self._refresh_diary_button()

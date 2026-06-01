@@ -7,7 +7,8 @@ from engine.inventory import InventoryManager
 # 玩家状态管理
 class GameState:
     def __init__(self):
-        self.room_id: str = "thatched_hut"  # 当前房间ID
+        self.room_id: str = "thatched_hut_bed"  # 当前房间ID
+        self.dialogue_id: str = ""             # 当前对话ID（如果有）
         self.play_time: float = 0.0            # 游玩时间
         self.last_saved: str = ""              # 上次保存时间
 
@@ -41,6 +42,7 @@ class GameState:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "room_id": self.room_id,
+            "dialogue_id": self.dialogue_id,
             "play_time": self.play_time,
             "last_saved": self.last_saved,
             "stats": self.stats,
@@ -53,7 +55,8 @@ class GameState:
         if not isinstance(data, dict):
             return
 
-        self.room_id = str(data.get("room_id", "thatched_hut"))
+        self.room_id = str(data.get("room_id", "thatched_hut_bed"))
+        self.dialogue_id = str(data.get("dialogue_id", ""))
 
         pt = data.get("play_time")
         self.play_time = float(pt) if pt is not None else 0.0
@@ -245,6 +248,12 @@ class GameEngine:
         if not reqs:
             return True
 
+        # 如果选项有 exclude 字段，当满足 exclude 中的任意条件时，选项隐藏
+        excludes = option.get("exclude", {})
+        for flag_key, expected_bool in excludes.get("flags", {}).items():
+            if self.state.flags.get(flag_key, False) == expected_bool:
+                return False
+
         for stat_key, required_val in reqs.get("stats", {}).items():
             if self.state.stats.get(stat_key, 0) < required_val:
                 return False
@@ -281,12 +290,25 @@ class GameEngine:
                 return alt.get("text", room_data.get("description", ""))
         return room_data.get("description", "")
 
-    # 执行选项选择，应用效果并切换房间
+    # 执行选项选择，应用效果并切换房间/对话
     def select_option(self, option: Dict[str, Any]) -> Dict[str, Any]:
         effects = option.get("effects", {})
         inv_mgr = InventoryManager(self.state)
 
         if effects:
+            # 兼容把 hp/san 这种直接写在 effects 根目录下的写法
+            for direct_stat in ["hp", "max_hp", "san", "corruption", "attack", "defense", "intelligence", "agility"]:
+                if direct_stat in effects:
+                    delta = effects[direct_stat]
+                    if direct_stat in self.state.stats:
+                        self.state.stats[direct_stat] = max(0, self.state.stats[direct_stat] + delta)
+                        
+            # 如果想要不超过 max_hp
+            if "hp" in self.state.stats and "max_hp" in self.state.stats:
+                self.state.stats["hp"] = min(self.state.stats["hp"], self.state.stats["max_hp"])
+            if "san" in self.state.stats:
+                self.state.stats["san"] = min(self.state.stats["san"], 100)
+
             for stat_key, delta in effects.get("stats", {}).items():
                 if stat_key in self.state.stats:
                     self.state.stats[stat_key] = max(0, self.state.stats[stat_key] + delta)
@@ -306,12 +328,20 @@ class GameEngine:
             for item_id in effects.get("items", {}).get("remove", []):
                 inv_mgr.remove(item_id)
 
-        # 切换房间
-        next_room = option.get("target_room", self.state.room_id)
-        self.state.room_id = next_room
+        # 切换房间或对话
+        next_room = option.get("target_room")
+        next_dialogue = option.get("target_dialogue")
+
+        if next_dialogue:
+            self.state.dialogue_id = next_dialogue
+            # 如果进入对话，room_id 保持不变（作为背景）
+        elif next_room:
+            self.state.room_id = next_room
+            self.state.dialogue_id = "" # 离开对话回到房间
 
         return {
             "success": True,
-            "next_room": next_room,
+            "next_room": self.state.room_id,
+            "next_dialogue": self.state.dialogue_id,
             "effects_applied": effects
         }

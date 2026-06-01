@@ -1,6 +1,6 @@
 {
     "debug_mode": true,
-    "text_speed": "medium",
+    "text_speed": "fast",
     "corruption_rate": 1.0,
     "sound_enabled": false,
     "skip_intro": true,

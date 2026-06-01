@@ -24,9 +24,7 @@ class GameState:
             "corruption": 0
         }
 
-        self.inventory: List[Dict[str, Any]] = [
-            {"id": "ballpoint_pen", "name": "圆珠笔", "desc": "一支普通的圆珠笔，不知为何和你一起穿越了。", "type": "misc", "qty": 1}
-        ]
+        self.inventory: List[Dict[str, Any]] = []
 
         self.diary: Dict[str, Any] = {
             "tasks": [],
@@ -103,7 +101,12 @@ class GameState:
 # 游戏核心逻辑
 class GameEngine:
     def __init__(self):
+        self._items_db: Dict[str, Any] = {}
+        self._load_items_db()
+
         self.state: GameState = GameState()
+        self._init_default_inventory()
+
         self.saves_dir: str = "saves"
         self.config_file: str = "engine_config.json"
 
@@ -121,6 +124,22 @@ class GameEngine:
 
         self.ensure_saves_dir()
         self.load_settings()
+
+    def _load_items_db(self):
+        try:
+            with open("data/items.json", "r", encoding="utf-8") as f:
+                self._items_db = json.load(f)
+        except Exception:
+            self._items_db = {}
+
+    def _init_default_inventory(self):
+        default_items = ["ballpoint_pen"]
+        inv_mgr = InventoryManager(self.state, self._items_db)
+        for item_id in default_items:
+            inv_mgr.add_by_id(item_id)
+
+    def get_item_def(self, item_id: str) -> Dict[str, Any]:
+        return self._items_db.get(item_id, {})
 
     # 确保存档目录存在
     def ensure_saves_dir(self):
@@ -265,8 +284,7 @@ class GameEngine:
         # 检查物品要求
         item_reqs = reqs.get("items", {})
         if item_reqs:
-            inv_mgr = InventoryManager(self.state)
-            # has: 检查是否有特定ID的物品
+            inv_mgr = InventoryManager(self.state, self._items_db)
             has_id = item_reqs.get("has")
             if has_id and not inv_mgr.has(has_id):
                 return False
@@ -293,7 +311,7 @@ class GameEngine:
     # 执行选项选择，应用效果并切换房间/对话
     def select_option(self, option: Dict[str, Any]) -> Dict[str, Any]:
         effects = option.get("effects", {})
-        inv_mgr = InventoryManager(self.state)
+        inv_mgr = InventoryManager(self.state, self._items_db)
 
         if effects:
             # 兼容把 hp/san 这种直接写在 effects 根目录下的写法
@@ -317,13 +335,16 @@ class GameEngine:
                 self.state.flags[flag_key] = new_val
 
             for item in effects.get("items", {}).get("add", []):
-                inv_mgr.add(
-                    item.get("id", ""),
-                    item.get("name", ""),
-                    item.get("desc", ""),
-                    item.get("type", "misc"),
-                    item.get("qty", 1)
-                )
+                if isinstance(item, str):
+                    inv_mgr.add_by_id(item)
+                else:
+                    inv_mgr.add(
+                        item.get("id", ""),
+                        item.get("name", ""),
+                        item.get("desc", ""),
+                        item.get("type", "misc"),
+                        item.get("qty", 1)
+                    )
 
             for item_id in effects.get("items", {}).get("remove", []):
                 inv_mgr.remove(item_id)

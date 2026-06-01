@@ -12,8 +12,21 @@ class InventoryManager:
         "misc": "杂物",
     }
 
-    def __init__(self, state):
+    def __init__(self, state, items_db=None):
         self.state = state
+        self._items_db = items_db or {}
+
+    def add_by_id(self, item_id: str, qty: int = 1):
+        item_def = self._items_db.get(item_id, {})
+        if not item_def:
+            return
+        self.add(
+            item_id,
+            item_def.get("name", item_id),
+            item_def.get("desc", ""),
+            item_def.get("type", "misc"),
+            qty
+        )
 
     def add(self, item_id: str, name: str, desc: str = "", item_type: str = "misc", qty: int = 1):
         for item in self.state.inventory:

@@ -137,15 +137,7 @@
         "hidden_text": "钥匙已取走",
         "effects": {
           "items": {
-            "add": [
-              {
-                "id": "village_key",
-                "name": "村口钥匙",
-                "desc": "一把生锈的钥匙，木牌上刻着「村口」。",
-                "type": "key",
-                "qty": 1
-              }
-            ]
+            "add": ["village_key"]
           },
           "flags": {
             "has_village_key": true
@@ -170,15 +162,7 @@
         "target_room": "thatched_hut_drawer",
         "effects": {
           "items": {
-            "add": [
-              {
-                "id": "old_diary",
-                "name": "破旧日记",
-                "desc": "一本磨损严重的日记，记录了一位旅行者的见闻。",
-                "type": "quest",
-                "qty": 1
-              }
-            ]
+            "add": ["old_diary"]
           },
           "flags": {
             "has_diary": true

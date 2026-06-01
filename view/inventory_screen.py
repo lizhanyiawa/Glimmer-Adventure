@@ -1,7 +1,6 @@
 from textual.screen import Screen
 from textual.widgets import Static, Button
 from textual.containers import Horizontal, Vertical, ScrollableContainer
-from engine.inventory import InventoryManager
 
 
 class InventoryScreen(Screen):
@@ -133,7 +132,7 @@ class InventoryScreen(Screen):
         self._selected = 0
 
     def compose(self):
-        inv_mgr = InventoryManager(self.app.engine.state)
+        inv_mgr = self.app.engine.inv_mgr
         self._items = inv_mgr.all()
 
         with Vertical(id="inv_box"):
@@ -160,8 +159,9 @@ class InventoryScreen(Screen):
         container = self.query_one("#item_list", ScrollableContainer)
         container.remove_children()
 
-        inv_mgr = InventoryManager(self.app.engine.state)
         for i, item in enumerate(self._items):
+            if not isinstance(item, dict):
+                continue
             qty = item.get("qty", 1)
             qty_str = f" x{qty}" if qty > 1 else ""
             label = f"{item['name']}{qty_str}"
@@ -178,14 +178,15 @@ class InventoryScreen(Screen):
     def _highlight_selected(self):
         container = self.query_one("#item_list", ScrollableContainer)
         for i, child in enumerate(container.children):
-            if hasattr(child, "set_class"):
-                if i == self._selected:
-                    child.set_class(True, "item_btn_selected")
-                else:
-                    child.set_class(False, "item_btn_selected")
+            if not hasattr(child, "set_class"):
+                continue
+            if i == self._selected:
+                child.set_class(True, "item_btn_selected")
+            else:
+                child.set_class(False, "item_btn_selected")
 
     def _show_detail(self, item: dict):
-        inv_mgr = InventoryManager(self.app.engine.state)
+        inv_mgr = self.app.engine.inv_mgr
         type_name = inv_mgr.type_name(item.get("type", "misc"))
         qty = item.get("qty", 1)
 
@@ -225,7 +226,7 @@ class InventoryScreen(Screen):
             return
         
         item = self._items[self._selected]
-        inv_mgr = InventoryManager(self.app.engine.state)
+        inv_mgr = self.app.engine.inv_mgr
         
         if inv_mgr.remove(item["id"], 1):
             self.notify(f"已丢弃 {item['name']}")

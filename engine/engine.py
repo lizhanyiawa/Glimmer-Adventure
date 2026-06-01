@@ -1,18 +1,21 @@
 import os
 import json
-import datetime
 from typing import Dict, Any, List
 from engine.inventory import InventoryManager
+from engine.save_manager import SaveManager
+from engine.paths import data_path, config_path
 
-# 玩家状态管理
+
+DIRECT_STATS = ["hp", "max_hp", "san", "corruption", "attack", "defense", "intelligence", "agility"]
+
+
 class GameState:
     def __init__(self):
-        self.room_id: str = "thatched_hut_bed"  # 当前房间ID
-        self.dialogue_id: str = ""             # 当前对话ID（如果有）
-        self.play_time: float = 0.0            # 游玩时间
-        self.last_saved: str = ""              # 上次保存时间
+        self.room_id: str = "thatched_hut_bed"
+        self.dialogue_id: str = ""
+        self.play_time: float = 0.0
+        self.last_saved: str = ""
 
-        # 属性
         self.stats: Dict[str, Any] = {
             "attack": 5,
             "defense": 3,
@@ -21,96 +24,40 @@ class GameState:
             "hp": 100,
             "max_hp": 100,
             "san": 100,
-            "corruption": 0
+            "corruption": 0,
         }
 
         self.inventory: List[Dict[str, Any]] = []
 
         self.diary: Dict[str, Any] = {
             "tasks": [],
-            "notes": []
+            "notes": [],
         }
 
         self.flags: Dict[str, bool] = {
             "met_alice": False,
             "classroom_power_cut": False,
-            "corridor_guarded": True
+            "corridor_guarded": True,
         }
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "room_id": self.room_id,
-            "dialogue_id": self.dialogue_id,
-            "play_time": self.play_time,
-            "last_saved": self.last_saved,
-            "stats": self.stats,
-            "inventory": self.inventory,
-            "diary": self.diary,
-            "flags": self.flags
-        }
 
-    def load_dict(self, data: Dict[str, Any]):
-        if not isinstance(data, dict):
-            return
-
-        self.room_id = str(data.get("room_id", "thatched_hut_bed"))
-        self.dialogue_id = str(data.get("dialogue_id", ""))
-
-        pt = data.get("play_time")
-        self.play_time = float(pt) if pt is not None else 0.0
-
-        self.last_saved = str(data.get("last_saved", ""))
-
-        saved_stats = data.get("stats", {})
-        if isinstance(saved_stats, dict):
-            for key in self.stats:
-                if key in saved_stats:
-                    try:
-                        self.stats[key] = type(self.stats[key])(saved_stats[key])
-                    except (ValueError, TypeError):
-                        pass
-            for key in saved_stats:
-                if key not in self.stats:
-                    self.stats[key] = saved_stats[key]
-
-        saved_inv = data.get("inventory", [])
-        if isinstance(saved_inv, list):
-            clean = []
-            for item in saved_inv:
-                if isinstance(item, dict) and "id" in item and "name" in item:
-                    clean.append(item)
-            self.inventory = clean if clean else self.inventory
-
-        saved_flags = data.get("flags", {})
-        if isinstance(saved_flags, dict):
-            for key in self.flags:
-                if key in saved_flags:
-                    self.flags[key] = bool(saved_flags[key])
-            for key in saved_flags:
-                if key not in self.flags:
-                    self.flags[key] = bool(saved_flags[key])
-
-        saved_diary = data.get("diary", {})
-        if isinstance(saved_diary, dict):
-            tasks = saved_diary.get("tasks", [])
-            self.diary["tasks"] = tasks if isinstance(tasks, list) else []
-            notes = saved_diary.get("notes", [])
-            self.diary["notes"] = notes if isinstance(notes, list) else []
-
-
-# 游戏核心逻辑
 class GameEngine:
     def __init__(self):
         self._items_db: Dict[str, Any] = {}
+        self._rooms_db: Dict[str, Any] = {}
+        self._dialogues_db: Dict[str, Any] = {}
+
         self._load_items_db()
+        self._load_rooms_db()
+        self._load_dialogues_db()
 
         self.state: GameState = GameState()
+        self.inv_mgr = InventoryManager(self.state, self._items_db)
         self._init_default_inventory()
 
-        self.saves_dir: str = "saves"
-        self.config_file: str = "engine_config.json"
+        self.save_mgr: SaveManager = SaveManager()
+        self.config_file: str = config_path()
 
-        # 游戏设置
         self.settings: Dict[str, Any] = {
             "debug_mode": False,
             "text_speed": "medium",
@@ -119,111 +66,81 @@ class GameEngine:
             "skip_intro": False,
             "confirm_return": True,
             "confirm_exit": True,
-            "confirm_save": True
+            "confirm_save": True,
         }
 
-        self.ensure_saves_dir()
         self.load_settings()
 
     def _load_items_db(self):
         try:
-            with open("data/items.json", "r", encoding="utf-8") as f:
+            with open(data_path("items.json"), "r", encoding="utf-8") as f:
                 self._items_db = json.load(f)
-        except Exception:
+        except Exception as e:
+            print(f"[ERROR] 加载 items.json 失败: {e}")
             self._items_db = {}
 
+    def _load_rooms_db(self):
+        try:
+            with open(data_path("rooms.json"), "r", encoding="utf-8") as f:
+                self._rooms_db = json.load(f)
+        except Exception as e:
+            print(f"[ERROR] 加载 rooms.json 失败: {e}")
+            self._rooms_db = {}
+
+    def _load_dialogues_db(self):
+        try:
+            with open(data_path("dialogues.json"), "r", encoding="utf-8") as f:
+                self._dialogues_db = json.load(f)
+        except Exception as e:
+            print(f"[ERROR] 加载 dialogues.json 失败: {e}")
+            self._dialogues_db = {}
+
     def _init_default_inventory(self):
-        default_items = ["ballpoint_pen"]
-        inv_mgr = InventoryManager(self.state, self._items_db)
-        for item_id in default_items:
-            inv_mgr.add_by_id(item_id)
+        for item_id in ["ballpoint_pen"]:
+            self.inv_mgr.add_by_id(item_id)
 
     def get_item_def(self, item_id: str) -> Dict[str, Any]:
         return self._items_db.get(item_id, {})
 
-    # 确保存档目录存在
-    def ensure_saves_dir(self):
-        if not os.path.exists(self.saves_dir):
-            os.makedirs(self.saves_dir)
+    def get_room(self, room_id: str) -> Dict[str, Any]:
+        room_data = self._rooms_db.get(room_id)
+        if room_data:
+            return {"id": room_id, **room_data}
+        return {}
 
-    # 获取所有存档槽位信息
-    def get_save_slots(self) -> List[Dict[str, Any]]:
-        self.ensure_saves_dir()
-        slots = []
-        for i in range(1, 6):
-            file_path = os.path.join(self.saves_dir, f"slot_{i}.json")
-            if os.path.exists(file_path):
-                if self.validate_save(i):
-                    try:
-                        with open(file_path, "r", encoding="utf-8") as f:
-                            data = json.load(f)
-                        slots.append({
-                            "slot": i,
-                            "exists": True,
-                            "room_id": data.get("room_id", "?"),
-                            "last_saved": data.get("last_saved", "?"),
-                            "level": data.get("stats", {}).get("attack", 1)
-                        })
-                    except Exception:
-                        slots.append({"slot": i, "exists": False, "corrupted": True})
-                else:
-                    slots.append({"slot": i, "exists": False, "corrupted": True})
-            else:
-                slots.append({"slot": i, "exists": False})
-        return slots
+    def get_dialogue(self, dialogue_id: str) -> Dict[str, Any]:
+        dlg_data = self._dialogues_db.get(dialogue_id)
+        if dlg_data:
+            return {"id": dialogue_id, **dlg_data}
+        return {}
 
-    # 保存游戏到指定槽位
+    def resolve_stats_changes(self, effects: Dict[str, Any]) -> List[Dict[str, Any]]:
+        changes = []
+
+        for stat_key in DIRECT_STATS:
+            if stat_key in effects:
+                changes.append({"key": stat_key, "delta": effects[stat_key]})
+
+        for stat_key, delta in effects.get("stats", {}).items():
+            changes.append({"key": stat_key, "delta": delta})
+
+        return changes
+
     def save_game(self, slot: int) -> bool:
-        self.ensure_saves_dir()
-        file_path = os.path.join(self.saves_dir, f"slot_{slot}.json")
-        try:
-            self.state.last_saved = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(self.state.to_dict(), f, ensure_ascii=False, indent=4)
-            return True
-        except Exception as e:
-            print(f"Save failed: {e}")
-            return False
-
-    # 从指定槽位加载游戏
-    def validate_save(self, slot: int) -> bool:
-        file_path = os.path.join(self.saves_dir, f"slot_{slot}.json")
-        if not os.path.exists(file_path):
-            return False
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if not isinstance(data, dict):
-                return False
-            required = ["room_id", "stats", "inventory", "flags"]
-            for key in required:
-                if key not in data:
-                    return False
-            if not isinstance(data.get("stats"), dict):
-                return False
-            if not isinstance(data.get("inventory"), list):
-                return False
-            if not isinstance(data.get("flags"), dict):
-                return False
-            return True
-        except Exception:
-            return False
+        return self.save_mgr.save(self.state, slot)
 
     def load_game(self, slot: int) -> bool:
-        file_path = os.path.join(self.saves_dir, f"slot_{slot}.json")
-        if not os.path.exists(file_path):
-            return False
-        if not self.validate_save(slot):
-            return False
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            self.state.load_dict(data)
-            return True
-        except Exception:
-            return False
+        return self.save_mgr.load(self.state, slot)
 
-    # 加载设置
+    def validate_save(self, slot: int) -> bool:
+        return self.save_mgr.validate(slot)
+
+    def delete_save(self, slot: int) -> bool:
+        return self.save_mgr.delete(slot)
+
+    def get_save_slots(self) -> List[Dict[str, Any]]:
+        return self.save_mgr.get_slots()
+
     def load_settings(self):
         if os.path.exists(self.config_file):
             try:
@@ -232,46 +149,31 @@ class GameEngine:
                 self.settings.update(saved)
                 if self.settings.get("text_speed") not in ("instant", "fast", "medium", "slow"):
                     self.settings["text_speed"] = "medium"
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[ERROR] 加载设置失败: {e}")
 
-    # 保存设置
     def save_settings(self):
         try:
             with open(self.config_file, "w", encoding="utf-8") as f:
                 json.dump(self.settings, f, ensure_ascii=False, indent=4)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[ERROR] 保存设置失败: {e}")
 
-    # 删除存档
-    def delete_save(self, slot_id: int) -> bool:
-        filepath = f"saves/slot_{slot_id}.json"
-        try:
-            if os.path.exists(filepath):
-                os.remove(filepath)
-                return True
-        except Exception:
-            pass
-        return False
-
-    # 设置玩家名字
     def set_player_name(self, name: str):
         if not name.strip():
             name = "无名"
         self.state.stats["player_name"] = name
         self.state.flags["has_named"] = True
 
-    # 检查选项是否可见（属性/标记是否满足条件）
     def check_option_visible(self, option: Dict[str, Any]) -> bool:
-        reqs = option.get("require", {})
-        if not reqs:
-            return True
-
-        # 如果选项有 exclude 字段，当满足 exclude 中的任意条件时，选项隐藏
         excludes = option.get("exclude", {})
         for flag_key, expected_bool in excludes.get("flags", {}).items():
             if self.state.flags.get(flag_key, False) == expected_bool:
                 return False
+
+        reqs = option.get("require", {})
+        if not reqs:
+            return True
 
         for stat_key, required_val in reqs.get("stats", {}).items():
             if self.state.stats.get(stat_key, 0) < required_val:
@@ -281,12 +183,10 @@ class GameEngine:
             if self.state.flags.get(flag_key, False) != expected_bool:
                 return False
 
-        # 检查物品要求
         item_reqs = reqs.get("items", {})
         if item_reqs:
-            inv_mgr = InventoryManager(self.state, self._items_db)
             has_id = item_reqs.get("has")
-            if has_id and not inv_mgr.has(has_id):
+            if has_id and not self.inv_mgr.has(has_id):
                 return False
 
         return True
@@ -308,20 +208,18 @@ class GameEngine:
                 return alt.get("text", room_data.get("description", ""))
         return room_data.get("description", "")
 
-    # 执行选项选择，应用效果并切换房间/对话
     def select_option(self, option: Dict[str, Any]) -> Dict[str, Any]:
         effects = option.get("effects", {})
-        inv_mgr = InventoryManager(self.state, self._items_db)
+
+        MAX_STAT = 99
 
         if effects:
-            # 兼容把 hp/san 这种直接写在 effects 根目录下的写法
-            for direct_stat in ["hp", "max_hp", "san", "corruption", "attack", "defense", "intelligence", "agility"]:
-                if direct_stat in effects:
-                    delta = effects[direct_stat]
-                    if direct_stat in self.state.stats:
-                        self.state.stats[direct_stat] = max(0, self.state.stats[direct_stat] + delta)
-                        
-            # 如果想要不超过 max_hp
+            for stat_key in DIRECT_STATS:
+                if stat_key in effects:
+                    delta = effects[stat_key]
+                    if stat_key in self.state.stats:
+                        self.state.stats[stat_key] = max(0, min(MAX_STAT, self.state.stats[stat_key] + delta))
+
             if "hp" in self.state.stats and "max_hp" in self.state.stats:
                 self.state.stats["hp"] = min(self.state.stats["hp"], self.state.stats["max_hp"])
             if "san" in self.state.stats:
@@ -329,40 +227,38 @@ class GameEngine:
 
             for stat_key, delta in effects.get("stats", {}).items():
                 if stat_key in self.state.stats:
-                    self.state.stats[stat_key] = max(0, self.state.stats[stat_key] + delta)
+                    self.state.stats[stat_key] = max(0, min(MAX_STAT, self.state.stats[stat_key] + delta))
 
             for flag_key, new_val in effects.get("flags", {}).items():
                 self.state.flags[flag_key] = new_val
 
             for item in effects.get("items", {}).get("add", []):
                 if isinstance(item, str):
-                    inv_mgr.add_by_id(item)
+                    self.inv_mgr.add_by_id(item)
                 else:
-                    inv_mgr.add(
+                    self.inv_mgr.add(
                         item.get("id", ""),
                         item.get("name", ""),
                         item.get("desc", ""),
                         item.get("type", "misc"),
-                        item.get("qty", 1)
+                        item.get("qty", 1),
                     )
 
             for item_id in effects.get("items", {}).get("remove", []):
-                inv_mgr.remove(item_id)
+                self.inv_mgr.remove(item_id)
 
-        # 切换房间或对话
         next_room = option.get("target_room")
         next_dialogue = option.get("target_dialogue")
 
         if next_dialogue:
             self.state.dialogue_id = next_dialogue
-            # 如果进入对话，room_id 保持不变（作为背景）
         elif next_room:
             self.state.room_id = next_room
-            self.state.dialogue_id = "" # 离开对话回到房间
+            self.state.dialogue_id = ""
 
         return {
             "success": True,
             "next_room": self.state.room_id,
             "next_dialogue": self.state.dialogue_id,
-            "effects_applied": effects
+            "effects_applied": effects,
         }

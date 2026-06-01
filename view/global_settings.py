@@ -271,8 +271,8 @@ class GlobalSettingsScreen(Screen):
             self.notify(f"覆盖存档提醒: {'开' if engine.settings['confirm_save'] else '关'}")
 
         elif btn_id == "load_save":
-            from view.save_selection_screen import SaveSelectionScreen
-            self.app.push_screen(SaveSelectionScreen())
+            from view.load_game_screen import LoadGameScreen
+            self.app.push_screen(LoadGameScreen())
 
         elif btn_id == "return_to_menu":
             engine.save_settings()

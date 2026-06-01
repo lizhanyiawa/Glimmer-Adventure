@@ -3,6 +3,7 @@ from textual.widgets import Static
 from textual import work
 import asyncio
 from engine.effects import FXManager
+from view.game_menu import GamePlayScreen
 
 
 class BrightenScreen(Screen):
@@ -34,8 +35,6 @@ class BrightenScreen(Screen):
 
     @work(exclusive=True)
     async def run_brighten(self):
-        from view.game_menu import GamePlayScreen
-
         box = self.query_one("#wake_box")
 
         await FXManager.play_border_brighten(box, duration=1.0)

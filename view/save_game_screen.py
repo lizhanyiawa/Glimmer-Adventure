@@ -1,8 +1,7 @@
-import os
-import json
 from textual.screen import Screen
 from textual.widgets import Static, Button
 from textual.containers import Vertical
+from view.global_settings import ConfirmActionScreen
 
 
 class SaveGameScreen(Screen):
@@ -63,19 +62,17 @@ class SaveGameScreen(Screen):
         self.update_slots()
 
     def update_slots(self):
-        for i in range(1, 6):
+        slots = self.app.engine.get_save_slots()
+        for s in slots:
+            i = s["slot"]
             btn = self.query_one(f"#slot_{i}", Button)
-            save_path = f"saves/slot_{i}.json"
-            if os.path.exists(save_path):
-                try:
-                    with open(save_path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    name = data.get("stats", {}).get("player_name", "无名")
-                    room = data.get("room_id", "未知")
-                    time = data.get("last_saved", "")
-                    btn.label = f"存档 {i}: {name} | {room} | {time}"
-                except Exception:
-                    btn.label = f"存档 {i}: (损坏)"
+            if s.get("corrupted"):
+                btn.label = f"存档 {i}: (损坏)"
+            elif s["exists"]:
+                name = s.get("player_name", "无名")
+                room = s.get("room_id", "未知")
+                time = s.get("last_saved", "")
+                btn.label = f"存档 {i}: {name} | {room} | {time}"
             else:
                 btn.label = f"存档 {i}: 空"
 
@@ -85,12 +82,11 @@ class SaveGameScreen(Screen):
             self.action_close()
         elif btn_id.startswith("slot_"):
             slot = int(btn_id.split("_")[1])
-            save_path = f"saves/slot_{slot}.json"
-            has_data = os.path.exists(save_path)
+            slots = self.app.engine.get_save_slots()
+            has_data = any(s["slot"] == slot and s["exists"] for s in slots)
 
             confirm = self.app.engine.settings.get("confirm_save", True)
             if has_data and confirm:
-                from view.global_settings import ConfirmActionScreen
                 self.app.push_screen(ConfirmActionScreen(
                     f"覆盖存档 {slot}",
                     f"该槽位已有存档，确定要覆盖吗？",

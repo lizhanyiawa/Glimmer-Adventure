@@ -219,6 +219,14 @@ class GlobalSettingsScreen(Screen):
                     classes="toggle_btn"
                 )
 
+            with Horizontal(classes="setting_row"):
+                yield Static("历史记录上限(行)", classes="setting_desc")
+                yield Button(
+                    str(s.get("history_lines", 200)),
+                    id="toggle_history_lines",
+                    classes="toggle_btn"
+                )
+
             yield Button("读取存档", id="load_save", classes="action_btn")
             yield Button("回到主菜单", id="return_to_menu", classes="action_btn")
             yield Button("退出游戏", id="exit_game", classes="action_btn")
@@ -269,6 +277,15 @@ class GlobalSettingsScreen(Screen):
             engine.settings["confirm_save"] = not engine.settings.get("confirm_save", True)
             event.button.label = "开" if engine.settings["confirm_save"] else "关"
             self.notify(f"覆盖存档提醒: {'开' if engine.settings['confirm_save'] else '关'}")
+
+        elif btn_id == "toggle_history_lines":
+            options = [50, 100, 200, 500]
+            cur = engine.settings.get("history_lines", 200)
+            idx = options.index(cur) if cur in options else 2
+            next_val = options[(idx + 1) % len(options)]
+            engine.settings["history_lines"] = next_val
+            event.button.label = str(next_val)
+            self.notify(f"历史记录上限: {next_val} 行")
 
         elif btn_id == "load_save":
             from view.load_game_screen import LoadGameScreen

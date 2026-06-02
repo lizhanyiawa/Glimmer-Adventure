@@ -83,6 +83,9 @@ class DiaryScreen(Screen):
         color: #ffaa00;
         text-style: bold;
     }
+    .entry_unread {
+        border-left: solid #ffe066;
+    }
     .entry_selected {
         border-left: solid #e6b800;
         background: #1f2833;
@@ -177,6 +180,8 @@ class DiaryScreen(Screen):
                     yield Button("[ 关闭 ]", id="close_diary_btn")
 
     def on_mount(self):
+        self._has_unread = self.app.engine.state.flags.get("diary_unread", False)
+        self.app.engine.state.flags["diary_unread"] = False
         self._build_entry_list()
         if self._entries:
             self._select(0)
@@ -187,13 +192,16 @@ class DiaryScreen(Screen):
         notes = diary.get("notes", [])
 
         self._entries = []
-        tasks_idx_end = 0
 
         container = self.query_one("#entry_list", ScrollableContainer)
-        container.remove_children()
+        for child in list(container.children):
+            child.remove()
+
+        widgets = []
+        new_items = self._has_unread
 
         if tasks:
-            container.mount(Static("── 任务 ──", classes="section_header"))
+            widgets.append(Static("── 任务 ──", classes="section_header"))
             for i, t in enumerate(tasks):
                 idx = len(self._entries)
                 self._entries.append(("task", idx, t))
@@ -207,11 +215,12 @@ class DiaryScreen(Screen):
                     btn.set_class(True, "task_btn_done")
                 else:
                     btn.set_class(True, "task_btn")
-                container.mount(btn)
-            tasks_idx_end = len(self._entries)
+                    if new_items:
+                        btn.set_class(True, "entry_unread")
+                widgets.append(btn)
 
         if notes:
-            container.mount(Static("── 笔记 ──", classes="section_header"))
+            widgets.append(Static("── 笔记 ──", classes="section_header"))
             for i, n in enumerate(notes):
                 idx = len(self._entries)
                 self._entries.append(("note", idx, n))
@@ -219,7 +228,12 @@ class DiaryScreen(Screen):
                 btn = Button(label, id=f"entry_{idx}")
                 btn.can_focus = True
                 btn.set_class(True, "note_btn")
-                container.mount(btn)
+                if new_items:
+                    btn.set_class(True, "entry_unread")
+                widgets.append(btn)
+
+        if widgets:
+            container.mount(*widgets)
 
     def _select(self, index: int):
         if 0 <= index < len(self._entries):
@@ -300,6 +314,7 @@ class DiaryScreen(Screen):
             "created": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         }
         self.app.engine.state.diary["notes"].append(note)
+        self.app.engine.state.flags["diary_unread"] = True
         self._build_entry_list()
         if self._entries:
             self._select(len(self._entries) - 1)

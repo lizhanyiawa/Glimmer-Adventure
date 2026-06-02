@@ -12,26 +12,38 @@ SPEED_PRESETS = {
     "slow": 0.06,
 }
 
+STYLE_TAGS = {
+    "fire": "bold red",
+    "ice": "bold #66ccff",
+    "poison": "bold #88ff00",
+    "heal": "bold #00ff88",
+    "holy": "bold #ffdd00",
+    "shadow": "italic #444466",
+    "whisper": "italic #888888",
+    "scream": "bold #ff0000",
+    "dim": "dim #888888",
+}
+
+FLOW_TAGS_SET = {"retract", "pause"}
+
+
+def convert_custom_tags(text: str) -> str:
+    for tag, style in STYLE_TAGS.items():
+        text = text.replace(f"<{tag}>", f"[{style}]")
+        text = text.replace(f"</{tag}>", f"[/{style}]")
+    for tag in FLOW_TAGS_SET:
+        text = text.replace(f"<{tag}/>", "")
+    return text
+
 # ==========================================
 # 打字机效果  -  支持自定义 XML 标签
 # ==========================================
 class TypewriterLog(Static):
     markup = True
 
-    STYLE_TAGS = {
-        "fire": "bold red",
-        "ice": "bold #66ccff",
-        "poison": "bold #88ff00",
-        "heal": "bold #00ff88",
-        "holy": "bold #ffdd00",
-        "shadow": "italic #444466",
-        "whisper": "italic #888888",
-        "scream": "bold #ff0000",
-        "dim": "dim #888888",
-    }
-
+    STYLE_TAGS = STYLE_TAGS
     ANIM_TAGS = {"shake", "flash", "wave"}
-    FLOW_TAGS = {"retract", "pause"}
+    FLOW_TAGS = FLOW_TAGS_SET
 
     SHAKE_POOL = [
         '@', '#', '$', '%', '&', '?', '!',

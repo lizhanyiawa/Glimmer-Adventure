@@ -5,7 +5,7 @@ from textual.events import Key
 from textual import on, work
 from rich.text import Text
 
-from engine.effects import TypewriterLog
+from engine.effects import TypewriterLog, convert_custom_tags
 
 STATS_NAMES = {
     "hp": "生命",
@@ -136,7 +136,7 @@ class GamePlayScreen(Screen):
         margin-left: 1;
     }
     #bottom_console {
-        height: 9;
+        height: 12;
     }
     #story_options {
         width: 65%;
@@ -150,12 +150,12 @@ class GamePlayScreen(Screen):
         width: 35%;
         margin-left: 1;
     }
-    #primary_buttons {
+    #left_buttons {
         width: 1fr;
         height: 100%;
         margin-right: 1;
     }
-    #secondary_buttons {
+    #right_buttons {
         width: 1fr;
         height: 100%;
     }
@@ -183,7 +183,7 @@ class GamePlayScreen(Screen):
         color: #ffffff;
         width: 100%;
         height: 2;
-        margin-bottom: 1;
+        margin: 0;
     }
     #btn_profile:hover {
         background: #ff007f;
@@ -203,6 +203,11 @@ class GamePlayScreen(Screen):
         background: #1f2833;
         color: #555555;
         text-style: none;
+    }
+    .diary_flash {
+        background: #ffe066 !important;
+        color: #0b0c10 !important;
+        text-style: bold;
     }
     #btn_save:hover {
         background: #00ff66;
@@ -234,7 +239,7 @@ class GamePlayScreen(Screen):
 
         with Horizontal(id="main_viewport"):
             yield TypewriterLog("", id="story_box")
-            yield RichLog(id="history_box", markup=True)
+            yield RichLog(id="history_box", markup=True, wrap=True, max_lines=engine.settings.get("history_lines", 200))
 
         with Horizontal(id="bottom_console"):
             with Container(id="story_options"):
@@ -243,15 +248,21 @@ class GamePlayScreen(Screen):
                 yield Button("[3] 选项 3", id="opt3", classes="opt_btn")
                 yield Button("[4] 选项 4", id="opt4", classes="opt_btn")
             with Horizontal(id="system_options"):
-                with Vertical(id="primary_buttons"):
+                with Vertical(id="left_buttons"):
                     yield Button("[P] 人物", id="btn_profile", classes="sys_btn")
                     yield Button("[I] 物品", id="btn_inventory", classes="sys_btn")
                     yield Button("[S] 保存", id="btn_save", classes="sys_btn")
-                with Vertical(id="secondary_buttons"):
-                    self._btn_diary = Button("[D] 日记", id="btn_diary", classes="sys_btn")
+                    yield Button("[ ] ---", id="btn_empty1", classes="sys_btn", disabled=True)
+                    yield Button("[ ] ---", id="btn_empty2", classes="sys_btn", disabled=True)
+                    yield Button("[ ] ---", id="btn_empty3", classes="sys_btn", disabled=True)
+                with Vertical(id="right_buttons"):
+                    self._btn_diary = Button("[ ] ---", id="btn_diary", classes="sys_btn", disabled=True)
                     yield self._btn_diary
                     yield Button("[O] 设置", id="btn_menu_settings", classes="sys_btn")
-                    yield Button("[ ] ---", id="btn_empty", classes="sys_btn", disabled=True)
+                    yield Button("[ ] ---", id="btn_empty4", classes="sys_btn", disabled=True)
+                    yield Button("[ ] ---", id="btn_empty5", classes="sys_btn", disabled=True)
+                    yield Button("[ ] ---", id="btn_empty6", classes="sys_btn", disabled=True)
+                    yield Button("[ ] ---", id="btn_empty7", classes="sys_btn", disabled=True)
 
     def on_mount(self):
         self.call_after_refresh(self.load_current_room)
@@ -279,21 +290,43 @@ class GamePlayScreen(Screen):
     def _refresh_diary_button(self):
         state = self.app.engine.state
         inventory = state.inventory
-        # 同时检查物品ID和进度标记，确保逻辑严密
         has_diary_item = any(item.get("id") in ["diary", "old_diary"] for item in inventory)
         has_diary_flag = state.flags.get("has_diary", False)
-        
+        has_unread = state.flags.get("diary_unread", False)
+
+        was_disabled = self._btn_diary.disabled
         has_diary = has_diary_item or has_diary_flag
-        
-        # 为了保持 3x2 布局稳定，我们使用 disabled 而不是 display=False
-        self._btn_diary.disabled = not has_diary
+
         if not has_diary:
-            self._btn_diary.label = "[D] (未获得日记)"
+            self._btn_diary.label = "[ ] ---"
+            self._btn_diary.disabled = True
+            self._btn_diary.styles.color = "#ffffff"
+            self._btn_diary.styles.text_style = "none"
         else:
             self._btn_diary.label = "[D] 日记"
-            # 激活状态下可以添加一些视觉提示
+            self._btn_diary.disabled = False
             self._btn_diary.styles.color = "#e6b800"
             self._btn_diary.styles.text_style = "bold"
+            if was_disabled or has_unread:
+                self._start_diary_flash()
+
+    def _start_diary_flash(self):
+        if hasattr(self, "_diary_flash_timer") and self._diary_flash_timer is not None:
+            return
+        self._flash_on = True
+        self._flash_count = 0
+        self._diary_flash_timer = self.set_interval(0.4, self._diary_flash_tick)
+
+    def _diary_flash_tick(self):
+        self._flash_count += 1
+        if self._flash_count > 12:
+            self._btn_diary.set_class(False, "diary_flash")
+            if hasattr(self, "_diary_flash_timer") and self._diary_flash_timer is not None:
+                self._diary_flash_timer.stop()
+                self._diary_flash_timer = None
+            return
+        self._flash_on = not self._flash_on
+        self._btn_diary.set_class(self._flash_on, "diary_flash")
 
     # 加载当前房间数据并刷新UI
    # 加载当前房间数据并刷新UI
@@ -339,11 +372,14 @@ class GamePlayScreen(Screen):
         if is_dialogue:
             speaker = node_data.get("speaker", "???")
             story_text = node_data.get("text", "")
-            full_text = f"【 {speaker} 】\n\n{story_text}"
 
-            history_log = self.query_one("#history_box", RichLog)
-            history_log.write(f"[bold cyan]【 {speaker} 】[/bold cyan]")
-            history_log.write(story_text)
+            if speaker:
+                full_text = f"【 {speaker} 】\n\n{story_text}"
+                history_log = self.query_one("#history_box", RichLog)
+                history_log.write(f"[bold cyan]【 {speaker} 】[/bold cyan]")
+                history_log.write(convert_custom_tags(story_text))
+            else:
+                full_text = story_text
         else:
             story_text = engine.resolve_room_description(node_data)
             room_style = node_data.get("style", "normal")
@@ -351,7 +387,7 @@ class GamePlayScreen(Screen):
 
             history_log = self.query_one("#history_box", RichLog)
             history_log.write(f"\n[bold white]【 {node_data.get('title', room_id)} 】[/bold white]")
-            history_log.write(story_text)
+            history_log.write(convert_custom_tags(story_text))
 
         def show_options_after_typing():
             self.refresh_options(node_data)
@@ -386,8 +422,10 @@ class GamePlayScreen(Screen):
         engine = self.app.engine
         result = []
         for option in options:
-            visible = engine.check_option_visible(option)
-            if visible:
+            state = engine.check_option_visible(option)
+            if state == "excluded":
+                continue
+            if state == "visible":
                 result.append((option, False, option.get("text", "选项")))
             else:
                 hidden_text = option.get("hidden_text")
@@ -416,7 +454,7 @@ class GamePlayScreen(Screen):
         
         # 记录玩家的选择到历史记录
         history_log = self.query_one("#history_box", RichLog)
-        history_log.write(f"\n[cyan]> {option.get('text', '')}[/cyan]")
+        history_log.write(f"\n[bold white]【你】[/bold white][cyan]「{option.get('text', '')}」[/cyan]")
 
         # 属性变化反馈
         effects = result.get("effects_applied", {})

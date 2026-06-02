@@ -67,6 +67,7 @@ class GameEngine:
             "confirm_return": True,
             "confirm_exit": True,
             "confirm_save": True,
+            "history_lines": 200,
         }
 
         self.load_settings()
@@ -165,31 +166,31 @@ class GameEngine:
         self.state.stats["player_name"] = name
         self.state.flags["has_named"] = True
 
-    def check_option_visible(self, option: Dict[str, Any]) -> bool:
+    def check_option_visible(self, option: Dict[str, Any]) -> str:
         excludes = option.get("exclude", {})
         for flag_key, expected_bool in excludes.get("flags", {}).items():
             if self.state.flags.get(flag_key, False) == expected_bool:
-                return False
+                return "excluded"
 
         reqs = option.get("require", {})
         if not reqs:
-            return True
+            return "visible"
 
         for stat_key, required_val in reqs.get("stats", {}).items():
             if self.state.stats.get(stat_key, 0) < required_val:
-                return False
+                return "hidden"
 
         for flag_key, expected_bool in reqs.get("flags", {}).items():
             if self.state.flags.get(flag_key, False) != expected_bool:
-                return False
+                return "hidden"
 
         item_reqs = reqs.get("items", {})
         if item_reqs:
             has_id = item_reqs.get("has")
             if has_id and not self.inv_mgr.has(has_id):
-                return False
+                return "hidden"
 
-        return True
+        return "visible"
 
     def resolve_room_description(self, room_data: Dict[str, Any]) -> str:
         alts = room_data.get("description_alt", [])
@@ -212,13 +213,17 @@ class GameEngine:
         effects = option.get("effects", {})
 
         MAX_STAT = 99
+        NATURAL_CAPPED = {"hp", "san"}
 
         if effects:
             for stat_key in DIRECT_STATS:
                 if stat_key in effects:
                     delta = effects[stat_key]
                     if stat_key in self.state.stats:
-                        self.state.stats[stat_key] = max(0, min(MAX_STAT, self.state.stats[stat_key] + delta))
+                        if stat_key in NATURAL_CAPPED:
+                            self.state.stats[stat_key] = max(0, self.state.stats[stat_key] + delta)
+                        else:
+                            self.state.stats[stat_key] = max(0, min(MAX_STAT, self.state.stats[stat_key] + delta))
 
             if "hp" in self.state.stats and "max_hp" in self.state.stats:
                 self.state.stats["hp"] = min(self.state.stats["hp"], self.state.stats["max_hp"])
@@ -227,7 +232,10 @@ class GameEngine:
 
             for stat_key, delta in effects.get("stats", {}).items():
                 if stat_key in self.state.stats:
-                    self.state.stats[stat_key] = max(0, min(MAX_STAT, self.state.stats[stat_key] + delta))
+                    if stat_key in NATURAL_CAPPED:
+                        self.state.stats[stat_key] = max(0, self.state.stats[stat_key] + delta)
+                    else:
+                        self.state.stats[stat_key] = max(0, min(MAX_STAT, self.state.stats[stat_key] + delta))
 
             for flag_key, new_val in effects.get("flags", {}).items():
                 self.state.flags[flag_key] = new_val
@@ -246,6 +254,25 @@ class GameEngine:
 
             for item_id in effects.get("items", {}).get("remove", []):
                 self.inv_mgr.remove(item_id)
+
+            for task in effects.get("tasks", {}).get("add", []):
+                existing = self.state.diary["tasks"]
+                task_id = task.get("id", f"task_{len(existing)}")
+                if not any(t.get("id") == task_id for t in existing):
+                    existing.append({
+                        "id": task_id,
+                        "title": task.get("title", "未命名任务"),
+                        "content": task.get("content", ""),
+                        "done": False,
+                    })
+                    self.state.flags["diary_unread"] = True
+
+            for task_id in effects.get("tasks", {}).get("complete", []):
+                for t in self.state.diary["tasks"]:
+                    if t.get("id") == task_id:
+                        t["done"] = True
+                        self.state.flags["diary_unread"] = True
+                        break
 
         next_room = option.get("target_room")
         next_dialogue = option.get("target_dialogue")

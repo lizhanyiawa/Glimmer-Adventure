@@ -1,0 +1,25 @@
+{
+  "shadow_beast": {
+    "name": "暗鳞兽",
+    "hp": 40,
+    "attack": 12,
+    "defense": 5,
+    "agility": 8,
+    "narrative": {
+      "encounter": "<shadow>一头暗鳞兽从灌木中蹿出，橘黄色的眼睛锁定了你。</shadow>",
+      "attack": "暗鳞兽低吼一声，张开布满利齿的大嘴向你猛扑过来！",
+      "hit": "暗鳞兽的利爪<fire>撕裂了你的肩膀</fire>。",
+      "miss": "暗鳞兽扑了个空，重重摔在地上，发出愤怒的低吼。",
+      "player_attack": "你抓住机会，奋力一击！",
+      "player_hit": "你的攻击<fire>精准命中</fire>了暗鳞兽的要害！",
+      "player_miss": "你的攻击被暗鳞兽敏捷地闪过了。",
+      "player_heavy": "<fire>会心一击！</fire>暗鳞兽发出痛苦的哀嚎。",
+      "death": "暗鳞兽发出一声凄厉的哀嚎，庞大的身躯摇晃了几下，<shadow>轰然倒下</shadow>。",
+      "flee_success": "你抓住暗鳞兽喘息的机会，转身就跑。暗鳞兽没有追来。",
+      "flee_fail": "你试图逃跑，但暗鳞兽拦住了你的去路！",
+      "victory": "战斗结束，你喘着粗气，看着暗鳞兽的躯体缓缓化作<dim>黑色的尘埃</dim>消散在空气中。"
+    },
+    "drops": [],
+    "xp": 15
+  }
+}

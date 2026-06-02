@@ -72,6 +72,11 @@ class GameEngine:
 
         self.load_settings()
 
+    def reset_game(self):
+        self.state = GameState()
+        self.inv_mgr = InventoryManager(self.state, self._items_db)
+        self._init_default_inventory()
+
     def _load_items_db(self):
         try:
             with open(data_path("items.json"), "r", encoding="utf-8") as f:

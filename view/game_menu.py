@@ -271,21 +271,37 @@ class GamePlayScreen(Screen):
 
     def _update_ui_colors(self):
         engine = self.app.engine
-        san = engine.state.stats.get("san", 100)
+        stats = engine.state.stats
+        hp = stats.get("hp", 100)
+        max_hp = stats.get("max_hp", 100)
+        san = stats.get("san", 100)
         is_dialogue = bool(engine.state.dialogue_id)
 
+        hp_ratio = hp / max(max_hp, 1)
+
         if is_dialogue:
-            bg_color, border_color = "#1a1a05", "#ffaa00"
+            bg_color, border_color = "#0a1a0a", "#00ff66"
+        elif hp_ratio < 0.1:
+            bg_color, border_color = "#1a0505", "#ff2222"
         elif san < 30:
-            bg_color, border_color = "#1a0505", "#ff007f"
-        elif san < 60:
-            bg_color, border_color = "#0f0c1a", "#ffaa00"
+            bg_color, border_color = "#0f0a1a", "#cc44ff"
+        elif hp_ratio < 0.3:
+            bg_color, border_color = "#1a1a05", "#ffaa00"
         else:
             bg_color, border_color = "#0b0c10", "#45f3ff"
 
         self.styles.background = bg_color
         self.query_one("#status_bar").styles.border = ("solid", border_color)
         self.query_one("#story_box").styles.border = ("solid", border_color)
+
+        for btn_id in ["opt1", "opt2", "opt3", "opt4"]:
+            try:
+                btn = self.query_one(f"#{btn_id}", Button)
+                if not btn.disabled:
+                    btn.styles.border = ("solid", border_color)
+                    btn.styles.color = border_color
+            except Exception:
+                pass
 
     def _refresh_diary_button(self):
         state = self.app.engine.state
@@ -478,6 +494,12 @@ class GamePlayScreen(Screen):
                 history_log.write(f"✦ 状态变更: {change_str}")
                 plain_str = change_str.replace("[green]", "").replace("[/green]", "").replace("[red]", "").replace("[/red]", "")
                 self.notify(f"状态发生变化：{plain_str}", title="提示", timeout=3)
+
+        battle_id = option.get("battle")
+        if battle_id:
+            from view.battle_screen import BattleScreen
+            self.app.push_screen(BattleScreen(battle_id))
+            return
 
         self.load_current_room()
         self._refresh_diary_button()

@@ -574,11 +574,9 @@
       },
       {
         "text": "【动作】捡起石头砸过去",
+        "battle": "shadow_beast",
         "target_room": "eastern_forest_entrance",
-        "require": { "flags": { "mushroom_collected": true } },
         "effects": {
-          "san": -10,
-          "hp": -15,
           "flags": { "met_shadow_beast": true, "fled_beast": true }
         }
       }

@@ -17,7 +17,8 @@ class IsekaiEngine(App):
         super().pop_screen()
 
     def action_start_gameplay(self):
-        self.push_screen(GamePlayScreen())
+        self.gameplay_screen = GamePlayScreen()
+        self.push_screen(self.gameplay_screen)
 
 if __name__ == "__main__":
     app = IsekaiEngine()

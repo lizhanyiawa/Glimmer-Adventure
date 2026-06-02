@@ -6,7 +6,7 @@
     "description_alt": [
       {
         "if": { "flags": { "tutorial_done": true } },
-        "text": "你回到了那张硬邦邦的木板床上。熟悉但同样让人不适的干草气味萦绕在鼻尖。"
+        "text": "你回到了那张硬邦邦的木板床上。窗外依旧是<shadow>深沉的夜色</shadow>，月光从茅草屋顶的缝隙中漏了进来。\n休息似乎让你恢复了一些气力，但天还没有要亮的意思。"
       }
     ],
     "options": [
@@ -21,8 +21,8 @@
         "require": { "flags": { "tutorial_done": true } },
         "hidden_text": "现在还不是休息的时候，你必须搞清楚现状",
         "effects": {
-          "hp": 20,
-          "san": 10
+          "hp": 999,
+          "san": 999
         }
       }
     ]
@@ -578,6 +578,27 @@
         "target_room": "eastern_forest_entrance",
         "effects": {
           "flags": { "met_shadow_beast": true, "fled_beast": true }
+        },
+        "post_battle": {
+          "hp": 0,
+          "san": 0,
+          "flags": {
+            "tutorial_done": true
+          },
+          "tasks": {
+            "add": [
+              {
+                "id": "tip_combat",
+                "title": "战斗心得",
+                "content": "这个世界是真的会死人的。把握好攻防节奏——防御能大幅降低伤害，但用过之后需要一轮来调整姿态。感觉不妙就赶紧跑，没人会觉得逃跑丢人。"
+              },
+              {
+                "id": "tip_rest",
+                "title": "休息恢复",
+                "content": "茅草屋虽然破旧，但那毕竟是你的落脚点。回床上睡一觉可以恢复生命值和理智值。如果以后好好修缮一下，休息效果应该会更好。"
+              }
+            ]
+          }
         }
       }
     ]

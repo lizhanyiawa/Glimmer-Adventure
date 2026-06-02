@@ -124,11 +124,12 @@ class BattleScreen(Screen):
     }
     """
 
-    def __init__(self, enemy_id: str):
+    def __init__(self, enemy_id: str, post_battle_effects: dict | None = None):
         super().__init__()
         self._enemy_id = enemy_id
         self._bm: BattleManager | None = None
         self._waiting_input = False
+        self._post_battle_effects = post_battle_effects or {}
 
     def compose(self):
         with Container(id="battle_top"):
@@ -160,6 +161,13 @@ class BattleScreen(Screen):
 
         encounter_text = self._bm.enemy_narrative.get("encounter", f"{self._bm.enemy.name}出现了！")
         self._write_history(encounter_text)
+
+        pre_text = self._bm.resolve_pre_battle()
+        if pre_text:
+            self._write_history(pre_text)
+            encounter_text += "\n" + pre_text
+            self._refresh_hp_bars()
+
         self._bm.rebuild_turn_order()
 
         story_box = self.query_one("#battle_story", TypewriterLog)
@@ -225,7 +233,7 @@ class BattleScreen(Screen):
 
     def _enable_buttons(self):
         self.query_one("#btn_attack", Button).disabled = False
-        self.query_one("#btn_defend", Button).disabled = False
+        self.query_one("#btn_defend", Button).disabled = not self._bm.can_defend
         self.query_one("#btn_flee", Button).disabled = False
         self.query_one("#btn_item", Button).disabled = True
 
@@ -273,6 +281,7 @@ class BattleScreen(Screen):
     def _end_battle(self):
         if self._bm.player_won:
             self._bm.finalize()
+            self._apply_post_battle()
             victory_msg = self._bm.enemy_narrative.get("victory", "战斗胜利！")
             self._write_history(victory_msg)
             self.query_one("#battle_story", TypewriterLog).type_text(
@@ -286,6 +295,10 @@ class BattleScreen(Screen):
                 speed="slow",
                 on_complete=self._game_over,
             )
+
+    def _apply_post_battle(self):
+        if self._post_battle_effects:
+            self.app.engine.apply_effects(self._post_battle_effects)
 
     def _close_battle(self):
         self.app.pop_screen()
@@ -313,7 +326,7 @@ class BattleScreen(Screen):
             self._player_attack()
 
     def action_action2(self):
-        if self._bm and self._bm.is_player_turn():
+        if self._bm and self._bm.is_player_turn() and self._bm.can_defend:
             self._player_defend()
 
     def action_action3(self):

@@ -183,13 +183,41 @@
   },
   "village_alchemy_talk_repeat": {
     "speaker": "莉莉安",
-    "text": "「怎么又回来了？荧光蘑菇找到了吗？没有的话就去东边森林里找找。」",
+    "text": "「哦，是你啊。有需要帮助的吗？」",
     "style": "normal",
     "options": [
       {
-        "text": "【离开】还在找，还在找……",
+        "text": "【交付】交出荧光蘑菇",
+        "target_dialogue": "village_alchemy_quest_turnin",
+        "require": { "flags": { "mushroom_collected": true } },
+        "exclude": { "flags": { "quest_mushroom_done": true } },
+        "effects": {}
+      },
+      {
+        "text": "【离开】没什么事，我先走了",
         "target_room": "village_alchemy",
         "effects": {}
+      }
+    ]
+  },
+
+  "village_alchemy_quest_turnin": {
+    "speaker": "莉莉安",
+    "text": "「太好了，你真的找到了！」她接过蘑菇，小心翼翼地在手上翻看，<heal>眼中闪烁着兴奋的光芒</heal>。\n「品质很不错，足够我做好几批药剂了。来，这是答应你的报酬。」\n她从架子上取下两瓶<heal>淡绿色的药水</heal>递给你。\n「放在身边吧，遇到危险的时候喝一瓶能救命。如果还需要的话，下次可以来我这里买。」",
+    "style": "normal",
+    "options": [
+      {
+        "text": "【离开】谢谢你，莉莉安",
+        "target_room": "village_alchemy",
+        "effects": {
+          "items": {
+            "add": ["healing_potion", "healing_potion"]
+          },
+          "flags": { "quest_mushroom_done": true },
+          "tasks": {
+            "complete": ["quest_mushroom"]
+          }
+        }
       }
     ]
   }

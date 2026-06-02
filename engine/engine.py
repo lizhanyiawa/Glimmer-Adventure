@@ -18,7 +18,7 @@ class GameState:
 
         self.stats: Dict[str, Any] = {
             "attack": 5,
-            "defense": 3,
+            "defense": 5,
             "intelligence": 5,
             "agility": 5,
             "hp": 100,
@@ -214,70 +214,75 @@ class GameEngine:
                 return alt.get("text", room_data.get("description", ""))
         return room_data.get("description", "")
 
-    def select_option(self, option: Dict[str, Any]) -> Dict[str, Any]:
-        effects = option.get("effects", {})
+    def apply_effects(self, effects: Dict[str, Any]):
+        """应用效果（flag、属性、物品、任务），不处理房间跳转"""
+        if not effects:
+            return
 
         MAX_STAT = 99
         NATURAL_CAPPED = {"hp", "san"}
 
-        if effects:
-            for stat_key in DIRECT_STATS:
-                if stat_key in effects:
-                    delta = effects[stat_key]
-                    if stat_key in self.state.stats:
-                        if stat_key in NATURAL_CAPPED:
-                            self.state.stats[stat_key] = max(0, self.state.stats[stat_key] + delta)
-                        else:
-                            self.state.stats[stat_key] = max(0, min(MAX_STAT, self.state.stats[stat_key] + delta))
-
-            if "hp" in self.state.stats and "max_hp" in self.state.stats:
-                self.state.stats["hp"] = min(self.state.stats["hp"], self.state.stats["max_hp"])
-            if "san" in self.state.stats:
-                self.state.stats["san"] = min(self.state.stats["san"], 100)
-
-            for stat_key, delta in effects.get("stats", {}).items():
+        for stat_key in DIRECT_STATS:
+            if stat_key in effects:
+                delta = effects[stat_key]
                 if stat_key in self.state.stats:
                     if stat_key in NATURAL_CAPPED:
                         self.state.stats[stat_key] = max(0, self.state.stats[stat_key] + delta)
                     else:
                         self.state.stats[stat_key] = max(0, min(MAX_STAT, self.state.stats[stat_key] + delta))
 
-            for flag_key, new_val in effects.get("flags", {}).items():
-                self.state.flags[flag_key] = new_val
+        if "hp" in self.state.stats and "max_hp" in self.state.stats:
+            self.state.stats["hp"] = min(self.state.stats["hp"], self.state.stats["max_hp"])
+        if "san" in self.state.stats:
+            self.state.stats["san"] = min(self.state.stats["san"], 100)
 
-            for item in effects.get("items", {}).get("add", []):
-                if isinstance(item, str):
-                    self.inv_mgr.add_by_id(item)
+        for stat_key, delta in effects.get("stats", {}).items():
+            if stat_key in self.state.stats:
+                if stat_key in NATURAL_CAPPED:
+                    self.state.stats[stat_key] = max(0, self.state.stats[stat_key] + delta)
                 else:
-                    self.inv_mgr.add(
-                        item.get("id", ""),
-                        item.get("name", ""),
-                        item.get("desc", ""),
-                        item.get("type", "misc"),
-                        item.get("qty", 1),
-                    )
+                    self.state.stats[stat_key] = max(0, min(MAX_STAT, self.state.stats[stat_key] + delta))
 
-            for item_id in effects.get("items", {}).get("remove", []):
-                self.inv_mgr.remove(item_id)
+        for flag_key, new_val in effects.get("flags", {}).items():
+            self.state.flags[flag_key] = new_val
 
-            for task in effects.get("tasks", {}).get("add", []):
-                existing = self.state.diary["tasks"]
-                task_id = task.get("id", f"task_{len(existing)}")
-                if not any(t.get("id") == task_id for t in existing):
-                    existing.append({
-                        "id": task_id,
-                        "title": task.get("title", "未命名任务"),
-                        "content": task.get("content", ""),
-                        "done": False,
-                    })
+        for item in effects.get("items", {}).get("add", []):
+            if isinstance(item, str):
+                self.inv_mgr.add_by_id(item)
+            else:
+                self.inv_mgr.add(
+                    item.get("id", ""),
+                    item.get("name", ""),
+                    item.get("desc", ""),
+                    item.get("type", "misc"),
+                    item.get("qty", 1),
+                )
+
+        for item_id in effects.get("items", {}).get("remove", []):
+            self.inv_mgr.remove(item_id)
+
+        for task in effects.get("tasks", {}).get("add", []):
+            existing = self.state.diary["tasks"]
+            task_id = task.get("id", f"task_{len(existing)}")
+            if not any(t.get("id") == task_id for t in existing):
+                existing.append({
+                    "id": task_id,
+                    "title": task.get("title", "未命名任务"),
+                    "content": task.get("content", ""),
+                    "done": False,
+                })
+                self.state.flags["diary_unread"] = True
+
+        for task_id in effects.get("tasks", {}).get("complete", []):
+            for t in self.state.diary["tasks"]:
+                if t.get("id") == task_id:
+                    t["done"] = True
                     self.state.flags["diary_unread"] = True
+                    break
 
-            for task_id in effects.get("tasks", {}).get("complete", []):
-                for t in self.state.diary["tasks"]:
-                    if t.get("id") == task_id:
-                        t["done"] = True
-                        self.state.flags["diary_unread"] = True
-                        break
+    def select_option(self, option: Dict[str, Any]) -> Dict[str, Any]:
+        effects = option.get("effects", {})
+        self.apply_effects(effects)
 
         next_room = option.get("target_room")
         next_dialogue = option.get("target_dialogue")

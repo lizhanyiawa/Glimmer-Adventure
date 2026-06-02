@@ -37,6 +37,7 @@ class Combatant:
         self.agility = agility
         self.is_player = is_player
         self.alive = True
+        self.stunned = False
         self._base_agility = agility
 
     @property
@@ -94,6 +95,38 @@ class BattleManager:
         self.fled = False
         self._current_turn_index = 0
 
+        self._pre_battle = e_data.get("pre_battle", {})
+        self._player_guarding = False
+        self._guard_cooldown = False
+
+    # ── 预战斗事件 ──
+    def resolve_pre_battle(self) -> str:
+        """在 encounter 文本播放完之后、首回合开始之前调用。
+
+        返回预战斗事件的叙事文本（为空字符串表示没有预事件）。
+        """
+        pre = self._pre_battle
+        if not pre:
+            return ""
+
+        ptype = pre.get("type", "")
+        if ptype == "rock_throw":
+            hit = random.random() < pre.get("hit_rate", 0.5)
+            if hit:
+                pct = pre.get("damage_pct", 0.1)
+                dmg = max(1, round(self.enemy.max_hp * pct))
+                self.enemy.take_damage(dmg)
+                lines = [pre.get("hit_text", "石头命中了！")]
+                if random.random() < pre.get("stun_chance", 0):
+                    self.enemy.stunned = True
+                    lines.append(pre.get("stun_text", "敌人陷入了眩晕！"))
+                self._check_battle_end()
+                return "\n".join(lines)
+            else:
+                return pre.get("miss_text", "石头没有命中……")
+
+        return ""
+
     # ── 排序 ──
     def rebuild_turn_order(self):
         self.combatants.sort(key=lambda c: c.agility, reverse=True)
@@ -134,9 +167,14 @@ class BattleManager:
         return "\n".join(lines)
 
     def player_defend(self) -> str:
-        self.player.defense += 3
+        self._player_guarding = True
+        self._guard_cooldown = True
         self.advance_turn()
-        return "你摆出防御姿态，<heal>防御力暂时上升</heal>。"
+        return "你稳住身形架起防御，<heal>做好了承受冲击的准备</heal>。"
+
+    @property
+    def can_defend(self) -> bool:
+        return not self._guard_cooldown
 
     def player_flee(self) -> Tuple[bool, str]:
         success = random.random() < 0.5
@@ -150,13 +188,27 @@ class BattleManager:
 
     # ── 敌人行动 ──
     def enemy_act(self) -> str:
+        if self.enemy.stunned:
+            self.enemy.stunned = False
+            self.advance_turn()
+            return f"{self.enemy.name}<dim>还在眩晕中，无法行动</dim>……"
+
         dmg, crit, mul = calc_damage(self.enemy.attack, self.player.defense)
-        self.player.take_damage(dmg)
 
-        attack_msg = self.enemy_narrative.get("attack", f"{self.enemy.name}发起攻击！")
-        hit_msg = self.enemy_narrative.get("hit", f"造成了 {dmg} 点伤害。")
+        if self._player_guarding:
+            dmg = max(1, dmg // 2)
+            self._player_guarding = False
+            self._guard_cooldown = False
+            msg = f"{self.enemy.name}的猛攻被你的防御姿态<heal>化解了大半</heal>，造成了 {dmg} 点伤害。"
+            self.player.take_damage(dmg)
 
-        lines = [attack_msg, hit_msg]
+            lines = [self.enemy_narrative.get("attack", f"{self.enemy.name}发起攻击！"), msg]
+        else:
+            self.player.take_damage(dmg)
+            attack_msg = self.enemy_narrative.get("attack", f"{self.enemy.name}发起攻击！")
+            hit_msg = self.enemy_narrative.get("hit", f"造成了 {dmg} 点伤害。")
+            lines = [attack_msg, hit_msg]
+
         if not self.player.alive:
             lines.append("<fire>你倒下了……</fire>")
 

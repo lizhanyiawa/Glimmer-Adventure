@@ -498,7 +498,8 @@ class GamePlayScreen(Screen):
         battle_id = option.get("battle")
         if battle_id:
             from view.battle_screen import BattleScreen
-            self.app.push_screen(BattleScreen(battle_id))
+            post_battle = option.get("post_battle", {})
+            self.app.push_screen(BattleScreen(battle_id, post_battle))
             return
 
         self.load_current_room()

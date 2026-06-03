@@ -10,6 +10,7 @@ class DiaryScreen(Screen):
         ("up", "prev_item", "上一个"),
         ("down", "next_item", "下一个"),
         ("n", "new_note", "新建笔记"),
+        ("d", "delete_note", "删除笔记"),
     ]
 
     CSS = """
@@ -130,6 +131,17 @@ class DiaryScreen(Screen):
         background: #ffaa00;
         text-style: bold;
     }
+    #delete_note_btn {
+        width: 100%;
+        background: #1a0505;
+        color: #ff5555;
+        border: none;
+    }
+    #delete_note_btn:hover {
+        background: #ff5555;
+        color: white;
+        text-style: bold;
+    }
 
     NoteInputScreen {
         align: center middle;
@@ -174,12 +186,14 @@ class DiaryScreen(Screen):
                 yield Static("", id="entry_detail")
 
             with Vertical(id="diary_footer"):
-                yield Static("[N] 新建笔记  ·  点击关闭按钮或按 ESC 返回", classes="diary_title")
+                yield Static("[N] 新建笔记  [D] 删除笔记  ·  点击关闭按钮或按 ESC 返回", classes="diary_title")
                 with Horizontal():
                     yield Button("[N] 新建笔记", id="new_note_btn")
+                    yield Button("[D] 删除笔记", id="delete_note_btn")
                     yield Button("[ 关闭 ]", id="close_diary_btn")
 
     def on_mount(self):
+        self.query_one("#delete_note_btn").display = False
         self._has_unread = self.app.engine.state.flags.get("diary_unread", False)
         self.app.engine.state.flags["diary_unread"] = False
         self._build_entry_list()
@@ -261,6 +275,7 @@ class DiaryScreen(Screen):
     def _show_detail(self, entry):
         etype, _, data = entry
         if etype == "task":
+            self.query_one("#delete_note_btn").display = False
             done = data.get("done", False)
             status = "[#557766]已完成[/]" if done else "[#66fcf1]进行中[/]"
             lines = [
@@ -270,6 +285,7 @@ class DiaryScreen(Screen):
                 f"[#c5c6c7]{data.get('content', '(无描述)')}[/]",
             ]
         else:
+            self.query_one("#delete_note_btn").display = True
             created = data.get("created", "")
             lines = [
                 f"[b #ffaa00]{data.get('title', '???')}[/]",
@@ -285,6 +301,8 @@ class DiaryScreen(Screen):
             self.action_close()
         elif btn_id == "new_note_btn":
             self.action_new_note()
+        elif btn_id == "delete_note_btn":
+            self.action_delete_note()
         elif btn_id.startswith("entry_"):
             index = int(btn_id.split("_")[1])
             self._select(index)
@@ -303,6 +321,31 @@ class DiaryScreen(Screen):
 
     def action_new_note(self):
         self.app.push_screen(NoteInputScreen(self._on_note_saved))
+
+    def action_delete_note(self):
+        if not self._entries or self._selected >= len(self._entries):
+            return
+        entry = self._entries[self._selected]
+        etype, _, data = entry
+        if etype != "note":
+            self.notify("只能删除笔记，不能删除任务", title="提示")
+            return
+
+        note_id = data.get("id", "")
+        notes = self.app.engine.state.diary.get("notes", [])
+        for i, n in enumerate(notes):
+            if n.get("id") == note_id:
+                notes.pop(i)
+                break
+
+        self._build_entry_list()
+        if self._entries:
+            self._selected = min(self._selected, len(self._entries) - 1)
+            self._select(self._selected)
+        else:
+            self.query_one("#entry_detail", Static).update("")
+            self.query_one("#delete_note_btn").display = False
+        self.notify("笔记已删除")
 
     def _on_note_saved(self, title: str, content: str):
         if not title.strip():

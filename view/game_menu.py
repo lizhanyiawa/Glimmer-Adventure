@@ -310,7 +310,6 @@ class GamePlayScreen(Screen):
         has_diary_flag = state.flags.get("has_diary", False)
         has_unread = state.flags.get("diary_unread", False)
 
-        was_disabled = self._btn_diary.disabled
         has_diary = has_diary_item or has_diary_flag
 
         if not has_diary:
@@ -323,7 +322,7 @@ class GamePlayScreen(Screen):
             self._btn_diary.disabled = False
             self._btn_diary.styles.color = "#e6b800"
             self._btn_diary.styles.text_style = "bold"
-            if was_disabled or has_unread:
+            if has_unread:
                 self._start_diary_flash()
 
     def _start_diary_flash(self):
@@ -433,6 +432,8 @@ class GamePlayScreen(Screen):
             else:
                 btn.label = f"[{i+1}] ---"
                 btn.disabled = True
+
+        self._update_ui_colors()
 
     def _get_compacted_options(self, options):
         engine = self.app.engine

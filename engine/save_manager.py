@@ -85,6 +85,8 @@ class SaveManager:
             notes = saved_diary.get("notes", [])
             state.diary["notes"] = notes if isinstance(notes, list) else []
 
+        state.flags["diary_unread"] = False
+
     def save(self, state, slot: int) -> bool:
         if not self._valid_slot(slot):
             return False

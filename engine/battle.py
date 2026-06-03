@@ -55,7 +55,10 @@ class Combatant:
 
 
 class BattleManager:
-    """战斗管理器 — 回合制，敏捷排序，纯数据层"""
+    """战斗管理器 — 回合制，敏捷排序，纯数据层
+
+    所有叙事文本均来自 enemies.json，battle.py 只负责数据和机制。
+    """
 
     def __init__(self, engine, enemy_id: str):
         self.engine = engine
@@ -78,7 +81,7 @@ class BattleManager:
         )
 
         self.enemy = Combatant(
-            name=e_data.get("name", "???",),
+            name=e_data.get("name", "???"),
             hp=e_data.get("hp", 30),
             max_hp=e_data.get("hp", 30),
             attack=e_data.get("attack", 8),
@@ -99,12 +102,20 @@ class BattleManager:
         self._player_guarding = False
         self._guard_cooldown = False
 
+    def _pick_narrative(self, key: str, fallback: str = "???") -> str:
+        """从叙事文本中随机选取一个变体，兼容字符串和数组两种格式"""
+        val = self.enemy_narrative.get(key, fallback)
+        if isinstance(val, list):
+            return random.choice(val)
+        return val
+
+    def _fmt_narrative(self, key: str, fallback: str = "???", **kwargs) -> str:
+        """选取叙事文本并格式化 {name} 等占位符"""
+        text = self._pick_narrative(key, fallback)
+        return text.format(name=self.enemy.name, **kwargs)
+
     # ── 预战斗事件 ──
     def resolve_pre_battle(self) -> str:
-        """在 encounter 文本播放完之后、首回合开始之前调用。
-
-        返回预战斗事件的叙事文本（为空字符串表示没有预事件）。
-        """
         pre = self._pre_battle
         if not pre:
             return ""
@@ -148,29 +159,29 @@ class BattleManager:
         return actor is not None and actor.is_player
 
     # ── 玩家行动 ──
-    def player_attack(self) -> str:
+    def player_attack(self) -> tuple:
         dmg, crit, mul = calc_damage(self.player.attack, self.enemy.defense)
         self.enemy.take_damage(dmg)
 
-        prefix = self.enemy_narrative.get("player_attack", "你发起攻击！")
+        prefix = self._pick_narrative("player_attack", "你发起攻击！")
         if crit:
-            hit_msg = self.enemy_narrative.get("player_heavy", f"会心一击！造成 {dmg} 点伤害！")
+            hit_msg = self._pick_narrative("player_heavy", f"会心一击！造成 {dmg} 点伤害！")
         else:
-            hit_msg = self.enemy_narrative.get("player_hit", f"命中了！造成 {dmg} 点伤害。")
+            hit_msg = self._pick_narrative("player_hit", f"命中了！造成 {dmg} 点伤害。")
 
         lines = [prefix, hit_msg]
         if not self.enemy.alive:
-            lines.append(self.enemy_narrative.get("death", f"{self.enemy.name}倒下了！"))
+            lines.append(self._pick_narrative("death", f"{self.enemy.name}倒下了！"))
 
         self._check_battle_end()
         self.advance_turn()
-        return "\n".join(lines)
+        return "\n".join(lines), dmg
 
     def player_defend(self) -> str:
         self._player_guarding = True
         self._guard_cooldown = True
         self.advance_turn()
-        return "你稳住身形架起防御，<heal>做好了承受冲击的准备</heal>。"
+        return self._pick_narrative("defend", "你稳住身形架起防御，<heal>做好了承受冲击的准备</heal>。")
 
     @property
     def can_defend(self) -> bool:
@@ -186,12 +197,35 @@ class BattleManager:
             self.advance_turn()
             return False, self.enemy_narrative.get("flee_fail", "逃跑失败！")
 
+    def player_investigate(self) -> str:
+        """调查敌人，消耗一回合，返回怪物信息。叙事文本来自 enemies.json"""
+        name = self.enemy.name
+        desc = self.enemy_data.get("description", "你看不出什么特别的信息。")
+        hp_pct = int(self.enemy.hp / max(self.enemy.max_hp, 1) * 100)
+
+        prefix = self._fmt_narrative("investigate", f"你仔细观察了{name}。")
+
+        statuses = self.enemy_narrative.get("hp_status", {})
+        if hp_pct >= 90:
+            hp_desc = statuses.get("healthy", "看起来毫发无伤")
+        elif hp_pct >= 60:
+            hp_desc = statuses.get("scratched", "受了些轻伤")
+        elif hp_pct >= 30:
+            hp_desc = statuses.get("wounded", "伤势不轻")
+        else:
+            hp_desc = statuses.get("critical", "已是强弩之末")
+
+        lines = [prefix, "", f"[#888888]{desc}[/#888888]", "", f"-- 状态: {hp_desc} --"]
+        self.advance_turn()
+        return "\n".join(lines)
+
     # ── 敌人行动 ──
-    def enemy_act(self) -> str:
+    def enemy_act(self) -> tuple:
         if self.enemy.stunned:
             self.enemy.stunned = False
             self.advance_turn()
-            return f"{self.enemy.name}<dim>还在眩晕中，无法行动</dim>……"
+            stunned_text = self._fmt_narrative("stunned", "{name}还在眩晕中，无法行动……")
+            return stunned_text, 0
 
         dmg, crit, mul = calc_damage(self.enemy.attack, self.player.defense)
 
@@ -199,14 +233,14 @@ class BattleManager:
             dmg = max(1, dmg // 2)
             self._player_guarding = False
             self._guard_cooldown = False
-            msg = f"{self.enemy.name}的猛攻被你的防御姿态<heal>化解了大半</heal>，造成了 {dmg} 点伤害。"
+            attack_msg = self._pick_narrative("attack", f"{self.enemy.name}发起攻击！")
+            guarded_msg = self._pick_narrative("guarded", f"但你的防御姿态<heal>化解了大半力道</heal>，只造成了 {dmg} 点伤害。").replace("{dmg}", str(dmg))
             self.player.take_damage(dmg)
-
-            lines = [self.enemy_narrative.get("attack", f"{self.enemy.name}发起攻击！"), msg]
+            lines = [attack_msg, guarded_msg]
         else:
             self.player.take_damage(dmg)
-            attack_msg = self.enemy_narrative.get("attack", f"{self.enemy.name}发起攻击！")
-            hit_msg = self.enemy_narrative.get("hit", f"造成了 {dmg} 点伤害。")
+            attack_msg = self._pick_narrative("attack", f"{self.enemy.name}发起攻击！")
+            hit_msg = self._pick_narrative("hit", f"造成了 {dmg} 点伤害。")
             lines = [attack_msg, hit_msg]
 
         if not self.player.alive:
@@ -214,7 +248,7 @@ class BattleManager:
 
         self._check_battle_end()
         self.advance_turn()
-        return "\n".join(lines)
+        return "\n".join(lines), dmg
 
     # ── 结算 ──
     def _check_battle_end(self):

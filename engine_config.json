@@ -3,7 +3,7 @@
     "text_speed": "fast",
     "corruption_rate": 1.0,
     "sound_enabled": false,
-    "skip_intro": true,
+    "skip_intro": false,
     "confirm_return": true,
     "confirm_exit": true,
     "confirm_save": true,

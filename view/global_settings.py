@@ -156,9 +156,16 @@ class GlobalSettingsScreen(Screen):
     SPEED_ORDER = ["instant", "fast", "medium", "slow"]
     SPEED_LABELS = {"instant": "即时", "fast": "快", "medium": "中", "slow": "慢"}
 
+    def on_mount(self):
+        # 检测是否从主菜单打开（screen_stack ≤ 2 说明只有 main_menu + 当前）
+        self._from_main_menu = len(self.app.screen_stack) <= 2
+
     def compose(self):
         engine = self.app.engine
         s = engine.settings
+
+        # compose 在 mount 之前，先用 screen_stack 判断
+        from_main = len(self.app.screen_stack) <= 2
 
         with Vertical(id="global_settings_box"):
             yield Static("设置", classes="title")
@@ -227,9 +234,16 @@ class GlobalSettingsScreen(Screen):
                     classes="toggle_btn"
                 )
 
-            yield Button("读取存档", id="load_save", classes="action_btn")
-            yield Button("回到主菜单", id="return_to_menu", classes="action_btn")
-            yield Button("退出游戏", id="exit_game", classes="action_btn")
+            load_btn = Button("读取存档", id="load_save", classes="action_btn")
+            return_btn = Button("回到主菜单", id="return_to_menu", classes="action_btn")
+            exit_btn = Button("退出游戏", id="exit_game", classes="action_btn")
+
+            if from_main:
+                load_btn.display = False
+                exit_btn.display = False
+            yield load_btn
+            yield return_btn
+            yield exit_btn
             yield Button("保存并关闭", id="close_settings_btn")
 
     def on_button_pressed(self, event: Button.Pressed):
@@ -293,7 +307,7 @@ class GlobalSettingsScreen(Screen):
 
         elif btn_id == "return_to_menu":
             engine.save_settings()
-            if engine.settings.get("confirm_return", True):
+            if not self._from_main_menu and engine.settings.get("confirm_return", True):
                 self.app.push_screen(ConfirmActionScreen(
                     "返回主菜单",
                     "确定要返回主菜单吗？\n未保存的进度将会丢失。",
@@ -304,7 +318,7 @@ class GlobalSettingsScreen(Screen):
 
         elif btn_id == "exit_game":
             engine.save_settings()
-            if engine.settings.get("confirm_exit", True):
+            if not self._from_main_menu and engine.settings.get("confirm_exit", True):
                 self.app.push_screen(ConfirmActionScreen(
                     "退出游戏",
                     "确定要退出游戏吗？\n未保存的进度将会丢失。",

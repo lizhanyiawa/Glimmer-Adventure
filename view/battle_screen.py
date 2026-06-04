@@ -201,7 +201,7 @@ class BattleScreen(Screen):
         height: 1;
         margin-top: 1;
         text-align: center;
-        color: #666666;
+        color: #ffffff;
     }
     .battle_btn {
         background: #1a1e2a;
@@ -263,6 +263,7 @@ class BattleScreen(Screen):
         self.query_one("#action_submenu").display = False
 
         self._bm = BattleManager(self.app.engine, self._enemy_id)
+        self._disable_buttons()
         self._refresh_bars()
 
         encounter_text = self._bm.enemy_narrative.get("encounter", f"{self._bm.enemy.name}出现了！")
@@ -286,7 +287,7 @@ class BattleScreen(Screen):
     # ── 点击继续 ──
 
     def _wait_for_continue(self):
-        self.query_one("#continue_prompt", Static).update("[#666666]▼ [Click / Enter] 继续[/#666666]")
+        self.query_one("#continue_prompt", Static).update("[#ffffff]▼ [Click / Enter] 继续[/#ffffff]")
         self._cont_waiting = True
 
     def _do_continue(self):

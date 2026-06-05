@@ -84,20 +84,50 @@ class GameEngine:
         except Exception as e:
             print(f"[ERROR] 加载 items.json 失败: {e}")
             self._items_db = {}
+        # merge text
+        try:
+            with open(data_path("items_text.json"), "r", encoding="utf-8") as f:
+                texts = json.load(f)
+            for item_id, text_data in texts.items():
+                if item_id in self._items_db:
+                    self._items_db[item_id]["desc"] = text_data.get("desc", "")
+        except Exception as e:
+            print(f"[WARN] 加载 items_text.json 失败: {e}")
 
     def _load_rooms_db(self):
         rooms_dir = data_path("rooms")
+        rooms_text_dir = data_path("rooms_text")
         self._rooms_db = {}
+        # load logic
         if os.path.isdir(rooms_dir):
             for filename in sorted(os.listdir(rooms_dir)):
                 if filename.endswith(".json"):
                     filepath = os.path.join(rooms_dir, filename)
                     try:
                         with open(filepath, "r", encoding="utf-8") as f:
-                            data = json.load(f)
-                            self._rooms_db.update(data)
+                            self._rooms_db.update(json.load(f))
                     except Exception as e:
                         print(f"[ERROR] 加载 {filename} 失败: {e}")
+        # merge text
+        if os.path.isdir(rooms_text_dir):
+            for filename in sorted(os.listdir(rooms_text_dir)):
+                if filename.endswith(".json"):
+                    filepath = os.path.join(rooms_text_dir, filename)
+                    try:
+                        with open(filepath, "r", encoding="utf-8") as f:
+                            texts = json.load(f)
+                        for room_id, text_data in texts.items():
+                            if room_id in self._rooms_db:
+                                room = self._rooms_db[room_id]
+                                room["title"] = text_data.get("title", room.get("title", ""))
+                                room["description"] = text_data.get("description", room.get("description", ""))
+                                alt_texts = text_data.get("description_alt", [])
+                                alts = room.get("description_alt", [])
+                                for i, alt_text in enumerate(alt_texts):
+                                    if i < len(alts):
+                                        alts[i]["text"] = alt_text
+                    except Exception as e:
+                        print(f"[ERROR] 加载 rooms_text/{filename} 失败: {e}")
         if not self._rooms_db:
             print("[ERROR] 未能加载任何房间数据")
 
@@ -108,6 +138,15 @@ class GameEngine:
         except Exception as e:
             print(f"[ERROR] 加载 dialogues.json 失败: {e}")
             self._dialogues_db = {}
+        # merge text
+        try:
+            with open(data_path("dialogues_text.json"), "r", encoding="utf-8") as f:
+                texts = json.load(f)
+            for dlg_id, text_data in texts.items():
+                if dlg_id in self._dialogues_db:
+                    self._dialogues_db[dlg_id]["text"] = text_data.get("text", "")
+        except Exception as e:
+            print(f"[WARN] 加载 dialogues_text.json 失败: {e}")
 
     def _init_default_inventory(self):
         for item_id in ["ballpoint_pen"]:

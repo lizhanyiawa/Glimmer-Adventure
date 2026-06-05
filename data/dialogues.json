@@ -1,8 +1,6 @@
 {
   "intro_wake_1": {
     "speaker": "",
-    "text": "<dim>这是哪儿……\n这不是我的教室。我怎么会躺在这种地方？</dim>",
-    "style": "normal",
     "options": [
       {
         "text": "【思考】低头看了看自己",
@@ -13,8 +11,6 @@
   },
   "intro_wake_2": {
     "speaker": "",
-    "text": "至少身体还是自己的……手指能动，也没有受伤。\n头顶是低矮的茅草屋顶，身下是硬邦邦的木板床。\n<dim>这一切都太过真实，不像是梦。</dim>",
-    "style": "normal",
     "options": [
       {
         "text": "【起身】先搞清楚状况再说",
@@ -25,23 +21,20 @@
   },
   "intro_wake_3": {
     "speaker": "",
-    "text": "你从床上坐起来，环顾四周。\n这间小屋里除了这张床，只有一个<fire>床头柜</fire>和一扇破旧的木窗。\n床头柜上放着一盏蜡烛，<ice>淡蓝色的火焰</ice>是这屋子里唯一的光源。\n抽屉似乎虚掩着，里面<heal>可能有什么东西</heal>。",
-    "style": "normal",
     "options": [
       {
         "text": "【检查】翻看床头柜",
         "target_room": "thatched_hut_candle",
         "effects": {
-          "flags": { "intro_monologue_done": true }
+          "flags": {
+            "intro_monologue_done": true
+          }
         }
       }
     ]
   },
-
   "village_tavern_barkeeper_greet": {
     "speaker": "格蕾塔",
-    "text": "她抬头看了你一眼，眼神虽然有些惊讶，但很快化作<heal>慈祥的微笑</heal>。\n「哟，生面孔。快找个位置坐下吧，外面风大。喝点什么？」\n她说着，拎起一个陶壶，给你面前的杯子倒满了热水。",
-    "style": "normal",
     "options": [
       {
         "text": "【对话】询问关于这里的事情",
@@ -52,15 +45,15 @@
         "text": "【离开】谢谢，我先到处转转",
         "target_room": "village_tavern",
         "effects": {
-          "flags": { "met_barkeeper": true }
+          "flags": {
+            "met_barkeeper": true
+          }
         }
       }
     ]
   },
   "village_tavern_barkeeper_origin": {
     "speaker": "格蕾塔",
-    "text": "她用手撑着下巴，用一种见怪不怪的眼神打量着你。\n「看你的打扮，不像是本地人。或者更准确地说——是从<fire>『上面』</fire>掉下来的吧？」她指了指天花板。\n「别紧张，像你这样的<holy>天外来客</holy>，我们这里隔几年总能碰上一个。你们管自己叫什么来着？穿越者？外来者？」",
-    "style": "normal",
     "options": [
       {
         "text": "【回答】是的，我从另一个世界来",
@@ -76,8 +69,6 @@
   },
   "village_tavern_barkeeper_stranger": {
     "speaker": "格蕾塔",
-    "text": "「果然。」她点了点头。「前几年有个跟你差不多的家伙，自称<fire>『玩家』</fire>，现在在隔壁镇子开了家锻造铺，生意好得不得了。」\n「还有个扎着马尾的小姑娘，一落地就嚷嚷着要见『村长』，结果我们这儿根本没有村长——她气得自己跑去镇上竞选镇议员了。」\n她哈哈大笑，显然对这种事情已经司空见惯。",
-    "style": "normal",
     "options": [
       {
         "text": "【对话】这个世界是怎么回事？",
@@ -88,30 +79,34 @@
   },
   "village_tavern_barkeeper_world": {
     "speaker": "格蕾塔",
-    "text": "她收起笑容，认真地说：\n「这个世界很简单。<holy>星光</holy>赐予我们生存的资本，而旷野里藏着想要夺走星光的东西。」\n「村子里有星光结界保护，很安全。但如果你要去野外……最好带把武器，或者学点简单的防身魔法。」\n她朝炼金工坊的方向努了努嘴：「去找<heal>莉莉安</heal>那个小丫头吧，她懂得比你想象的要多。」",
-    "style": "normal",
     "options": [
       {
         "text": "【对话】天外来客是怎么回事？",
         "target_dialogue": "village_tavern_barkeeper_stranger",
-        "exclude": { "flags": { "talked_stranger": true } },
+        "exclude": {
+          "flags": {
+            "talked_stranger": true
+          }
+        },
         "effects": {
-          "flags": { "talked_stranger": true }
+          "flags": {
+            "talked_stranger": true
+          }
         }
       },
       {
         "text": "【离开】谢谢，我去找莉莉安",
         "target_room": "village_tavern",
         "effects": {
-          "flags": { "met_barkeeper": true }
+          "flags": {
+            "met_barkeeper": true
+          }
         }
       }
     ]
   },
   "village_tavern_barkeeper_repeat": {
     "speaker": "格蕾塔",
-    "text": "「热水在那边自己倒，别客气。如果你打到了什么稀有的野味，酒馆高价回收。」",
-    "style": "normal",
     "options": [
       {
         "text": "【离开】好，等我有了猎物再来",
@@ -120,11 +115,8 @@
       }
     ]
   },
-
   "village_alchemy_talk_first": {
     "speaker": "莉莉安",
-    "text": "「我叫莉莉安。」她一边把研磨好的粉末倒进烧杯，一边说，「这里的炼金术注重<heal>草药学</heal>和一点点<holy>『星光』</holy>的运用。别指望能点石成金，但做点发光药剂还是没问题的。」\n她拍了拍手上的粉末，眼睛一亮。\n「如果你有空的话，能不能帮我个小忙？东边的森林里有一种<poison>荧光蘑菇</poison>，我需要一些来完成新的配方。作为回报，我会给你一些好用的药剂。」",
-    "style": "normal",
     "options": [
       {
         "text": "【接受】答应帮莉莉安找荧光蘑菇",
@@ -149,8 +141,6 @@
   },
   "village_alchemy_quest_accept": {
     "speaker": "莉莉安",
-    "text": "「太好了！去东边的森林外围找找就行，千万别走太深。祝你好运！」",
-    "style": "normal",
     "options": [
       {
         "text": "【离开】好的，我去去就回",
@@ -171,8 +161,6 @@
   },
   "village_alchemy_quest_decline": {
     "speaker": "莉莉安",
-    "text": "「好吧，如果你改变主意了随时来找我。」她有些失落地低下头，继续捣鼓桌上的瓶瓶罐罐。",
-    "style": "normal",
     "options": [
       {
         "text": "【离开】再见",
@@ -183,14 +171,20 @@
   },
   "village_alchemy_talk_repeat": {
     "speaker": "莉莉安",
-    "text": "「哦，是你啊。有需要帮助的吗？」",
-    "style": "normal",
     "options": [
       {
         "text": "【交付】交出荧光蘑菇",
         "target_dialogue": "village_alchemy_quest_turnin",
-        "require": { "flags": { "mushroom_collected": true } },
-        "exclude": { "flags": { "quest_mushroom_done": true } },
+        "require": {
+          "flags": {
+            "mushroom_collected": true
+          }
+        },
+        "exclude": {
+          "flags": {
+            "quest_mushroom_done": true
+          }
+        },
         "effects": {}
       },
       {
@@ -200,22 +194,26 @@
       }
     ]
   },
-
   "village_alchemy_quest_turnin": {
     "speaker": "莉莉安",
-    "text": "「太好了，你真的找到了！」她接过蘑菇，小心翼翼地在手上翻看，<heal>眼中闪烁着兴奋的光芒</heal>。\n「品质很不错，足够我做好几批药剂了。来，这是答应你的报酬。」\n她从架子上取下两瓶<heal>淡绿色的药水</heal>递给你。\n「放在身边吧，遇到危险的时候喝一瓶能救命。如果还需要的话，下次可以来我这里买。」",
-    "style": "normal",
     "options": [
       {
         "text": "【离开】谢谢你，莉莉安",
         "target_room": "village_alchemy",
         "effects": {
           "items": {
-            "add": ["healing_potion", "healing_potion"]
+            "add": [
+              "healing_potion",
+              "healing_potion"
+            ]
           },
-          "flags": { "quest_mushroom_done": true },
+          "flags": {
+            "quest_mushroom_done": true
+          },
           "tasks": {
-            "complete": ["quest_mushroom"]
+            "complete": [
+              "quest_mushroom"
+            ]
           }
         }
       }

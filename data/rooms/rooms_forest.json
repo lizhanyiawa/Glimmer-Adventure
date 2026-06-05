@@ -1,8 +1,5 @@
 {
   "eastern_forest_entrance": {
-    "title": "东部森林外围",
-    "style": "dread",
-    "description": "你踏入森林边缘，头顶的月光瞬间被层层叠叠的树冠<shadow>切割得支离破碎</shadow>。\n空气中弥漫着潮湿的泥土和腐叶的气息。脚下是松软的苔藓，踩上去<whisper>像踩在什么东西的尸体上</whisper>。\n树干上爬满了不知名的藤蔓，偶尔能看到藤蔓之间挂着几缕<ice>发着冷白荧光</ice>的蛛丝。\n远处传来一声低沉悠长的嗥叫，分不清是狼还是别的什么。\n\n地上的泥土有被人踩过的痕迹，沿着一条勉强可辨的小路向森林深处延伸。",
     "options": [
       {
         "text": "【探索】沿着小路深入森林",
@@ -21,11 +18,7 @@
       }
     ]
   },
-
   "eastern_forest_spiderweb": {
-    "title": "东部森林外围",
-    "style": "dread",
-    "description": "你凑近树干仔细观察那些发光的蛛丝。蛛丝本身是普通的白色，但附着在上面的某些<ice>微粒</ice>在发出冷光。\n你用手指轻轻触碰，微粒沾在了指尖上，凉丝丝的。看起来像是某种<heal>发光苔藓的孢子</heal>。\n\n头顶的树枝突然晃动了一下，你抬头——一只拳头大的蜘蛛从你面前掠过，消失在更高的枝叶间。\n<whisper>最好还是不要在这里久留。</whisper>",
     "options": [
       {
         "text": "【探索】沿着小路深入森林",
@@ -39,22 +32,30 @@
       }
     ]
   },
-
   "eastern_forest_deep": {
-    "title": "东部森林深处",
-    "style": "dread",
-    "description": "随着深入，小路变得越来越模糊，两旁的树木也愈发粗壮扭曲。\n这里的空气似乎更加<shadow>厚重</shadow>，每一次呼吸都带着一股微微的甜腥味。\n你注意到一棵倾倒的枯树旁，有几簇<poison>散发着幽绿荧光的蘑菇</poison>。正是莉莉安描述的那种——荧光蘑菇。\n\n但枯树的阴影深处，似乎有什么东西在动。你停下脚步，竖起耳朵——一阵<whisper>窸窸窣窣</whisper>的声音从灌木丛中传来，然后停了。\n像是有什么东西也在注视着你。",
     "options": [
       {
         "text": "【拾取】采集荧光蘑菇",
         "target_room": "eastern_forest_deep",
-        "require": { "flags": { "alchemy_quest": true } },
-        "exclude": { "flags": { "mushroom_collected": true } },
+        "require": {
+          "flags": {
+            "alchemy_quest": true
+          }
+        },
+        "exclude": {
+          "flags": {
+            "mushroom_collected": true
+          }
+        },
         "hidden_text": "暂无需要采集的东西",
         "effects": {
-          "flags": { "mushroom_collected": true },
+          "flags": {
+            "mushroom_collected": true
+          },
           "tasks": {
-            "complete": ["quest_mushroom"]
+            "complete": [
+              "quest_mushroom"
+            ]
           }
         }
       },
@@ -75,17 +76,21 @@
       }
     ]
   },
-
   "eastern_forest_tracks": {
-    "title": "东部森林深处",
-    "style": "dread",
-    "description": "你蹲下身子，仔细观察枯树周围的泥土。\n地上散落着几行新鲜的爪印——比狼的更大，更深。爪印的周围有拖曳的痕迹，像是<poison>有什么东西被拖进了灌木丛</poison>。\n你还发现了几根粗硬的黑色毛发，捏在手里像是钢丝一样扎手。\n\n<shadow>灌木丛里的窸窣声又响了一下，这次更近了。</shadow>",
     "options": [
       {
         "text": "【探索】采集荧光蘑菇",
         "target_room": "eastern_forest_deep",
-        "require": { "flags": { "alchemy_quest": true } },
-        "exclude": { "flags": { "mushroom_collected": true } },
+        "require": {
+          "flags": {
+            "alchemy_quest": true
+          }
+        },
+        "exclude": {
+          "flags": {
+            "mushroom_collected": true
+          }
+        },
         "hidden_text": "暂无需要采集的东西",
         "effects": {}
       },
@@ -101,27 +106,32 @@
       }
     ]
   },
-
   "eastern_forest_threat": {
-    "title": "东部森林深处",
-    "style": "danger",
-    "description": "你壮着胆子对着灌木丛喊道：「谁在那里？出来！」\n\n沉默。然后灌木丛剧烈地晃动了一下。\n一头和小牛犊差不多大的<shadow>暗鳞狼</shadow>从灌木中蹿了出来——它有着狼一般的身形，但皮肤上没有毛发，取而代之的是粗糙的<ice>暗蓝色鳞片</ice>。\n它的眼睛是两个<fire>燃烧着的橘黄色</fire>光点，正直直地盯着你。\n\n<whisper>它没有立刻攻击，只是从喉咙深处发出低沉的咕噜声。似乎在等待你下一步的动作。</whisper>",
     "options": [
       {
         "text": "【动作】保持对视，缓慢后退",
         "target_room": "eastern_forest_entrance",
         "effects": {
           "san": -5,
-          "flags": { "met_shadow_beast": true }
+          "flags": {
+            "met_shadow_beast": true
+          }
         }
       },
       {
         "text": "【动作】捡起石头砸过去",
         "battle": "shadow_beast",
         "target_room": "eastern_forest_entrance",
-        "exclude": { "flags": { "shadow_beast_slain": true } },
+        "exclude": {
+          "flags": {
+            "shadow_beast_slain": true
+          }
+        },
         "effects": {
-          "flags": { "met_shadow_beast": true, "fled_beast": true }
+          "flags": {
+            "met_shadow_beast": true,
+            "fled_beast": true
+          }
         },
         "post_battle": {
           "hp": 0,

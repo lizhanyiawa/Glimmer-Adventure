@@ -70,14 +70,13 @@ class TypewriterLog(Static):
     def on_unmount(self):
         self._stop_all()
 
-    def type_text(self, full_text: str, speed=0.02, effect_type: str = "normal", on_complete=None):
+    def type_text(self, full_text: str, speed=0.02, on_complete=None):
         self._stop_all()
 
         if isinstance(speed, str):
             speed = SPEED_PRESETS.get(speed, 0.03)
 
         self._tw_on_complete = on_complete
-        self._tw_effect_type = effect_type
         self._tw_segments = self._parse(full_text)
         self._tw_seg_index = 0
         self._tw_char_index = 0
@@ -201,16 +200,6 @@ class TypewriterLog(Static):
 
     # ---------- 显示拼接 ----------
 
-    def _box(self, inner):
-        et = self._tw_effect_type
-        if et == "warning":
-            return f"[bold red]{inner}[/bold red]"
-        if et == "lust":
-            return f"[bold italic #ff007f]{inner}[/bold italic #ff007f]"
-        if et == "system":
-            return f"[cyan]{inner}[/cyan]"
-        return inner
-
     def _build_current_display(self):
         parts = []
         for i in range(self._tw_seg_index):
@@ -219,7 +208,7 @@ class TypewriterLog(Static):
         if self._tw_seg_index < len(self._tw_segments) and self._tw_state != "retracting":
             parts.append(self._seg_render(self._tw_seg_index, full=False))
 
-        return self._strip_incomplete_markup(self._box("".join(parts)))
+        return self._strip_incomplete_markup("".join(parts))
 
     def _strip_incomplete_markup(self, text: str) -> str:
         last_open = text.rfind('[')
@@ -273,7 +262,7 @@ class TypewriterLog(Static):
                 parts.append(f"[{style}]{content}[/{style}]")
             else:
                 parts.append(content)
-        return self._box("".join(parts))
+        return "".join(parts)
 
     # ---------- 流程控制 ----------
 
@@ -339,7 +328,7 @@ class TypewriterLog(Static):
 
             parts.append(content)
 
-        self.update(self._box("".join(parts)))
+        self.update("".join(parts))
 
     # ---------- 辅助 ----------
 

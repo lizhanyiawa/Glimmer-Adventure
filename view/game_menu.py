@@ -440,7 +440,6 @@ class GamePlayScreen(Screen):
                 full_text = story_text
         else:
             story_text = engine.resolve_room_description(node_data)
-            room_style = node_data.get("style", "normal")
             full_text = f"【 {node_data.get('title', room_id)} 】\n\n{story_text}"
 
             history_log = self.query_one("#history_box", RichLog)
@@ -453,7 +452,6 @@ class GamePlayScreen(Screen):
         self.query_one("#story_box", TypewriterLog).type_text(
             full_text,
             speed=engine.settings.get("text_speed", "medium"),
-            effect_type=node_data.get("style", "normal"),
             on_complete=show_options_after_typing
         )
 

@@ -8,7 +8,17 @@ from engine.paths import data_path
 
 def _load_enemies() -> Dict[str, Any]:
     with open(data_path("enemies.json"), "r", encoding="utf-8") as f:
-        return json.load(f)
+        enemies = json.load(f)
+    try:
+        with open(data_path("enemies_text.json"), "r", encoding="utf-8") as f:
+            texts = json.load(f)
+        for eid, text_data in texts.items():
+            if eid in enemies:
+                enemies[eid]["description"] = text_data.get("description", "")
+                enemies[eid]["narrative"] = text_data.get("narrative", {})
+    except Exception:
+        pass
+    return enemies
 
 
 def calc_damage(atk: float, defense: float) -> Tuple[int, bool, float]:

@@ -1,12 +1,12 @@
 {
   "thatched_hut_bed": {
-    "title": "破旧茅草屋",
-    "style": "normal",
-    "description": "「给我干哪来了，这还是教室么……」\n你躺在一张硬邦邦的木板床上，低矮的茅草屋顶从缝隙中透出几缕<shadow>惨白的月光</shadow>。\n空气中弥漫着干草和泥土的气息，但这触感太过真实，绝不是某种恶作剧。\n你想起自己刚刚还在上自习，结果一眨眼就来到了这里。",
     "description_alt": [
       {
-        "if": { "flags": { "intro_monologue_done": true } },
-        "text": "你爬上了那张硬邦邦的木板床。窗外依旧是<shadow>深沉的夜色</shadow>，月光从茅草屋顶的缝隙中漏了进来。\n虽然简陋，但这毕竟是你在异世界唯一的落脚点。"
+        "if": {
+          "flags": {
+            "intro_monologue_done": true
+          }
+        }
       }
     ],
     "options": [
@@ -25,11 +25,7 @@
       }
     ]
   },
-
   "thatched_hut": {
-    "title": "破旧茅草屋",
-    "style": "normal",
-    "description": "你环顾四周，这间狭小的屋子里除了那张木板床，就只有一个简陋的床头柜和一扇破旧的木窗。\n床头柜上放着一盏蜡烛，<ice>淡蓝色的火焰</ice>在黑暗中摇曳，勉强照亮了角落。\n屋子的木门紧闭，外面的风呼啸着透过门缝钻进来。",
     "options": [
       {
         "text": "【探索】上床",
@@ -53,15 +49,14 @@
       }
     ]
   },
-
   "thatched_hut_candle": {
-    "title": "破旧茅草屋",
-    "style": "normal",
-    "description": "你走近床头柜，俯身仔细观察那盏蜡烛。\n烛台是粗糙的铁质，上面刻着一些你看不懂的纹路。蜡烛本身似乎不是普通的蜡——火焰是<ice>淡蓝色的</ice>，而且燃烧时没有一丝烟。\n床头柜的抽屉虚掩着，里面似乎有什么东西。",
     "description_alt": [
       {
-        "if": { "flags": { "candle_blown": true } },
-        "text": "你走近床头柜。那盏蜡烛已经被吹灭了，只剩一个铁质烛台留在那里。<shadow>屋子里变得更加昏暗了。</shadow>"
+        "if": {
+          "flags": {
+            "candle_blown": true
+          }
+        }
       }
     ],
     "options": [
@@ -73,7 +68,11 @@
       {
         "text": "【动作】尝试吹灭蜡烛",
         "target_room": "thatched_hut_candle",
-        "exclude": { "flags": { "candle_blown": true } },
+        "exclude": {
+          "flags": {
+            "candle_blown": true
+          }
+        },
         "effects": {
           "flags": {
             "candle_blown": true
@@ -84,10 +83,18 @@
         "text": "【动作】重新点燃蜡烛",
         "target_room": "thatched_hut_candle",
         "require": {
-          "flags": { "candle_blown": true },
-          "items": { "has": "lighter" }
+          "flags": {
+            "candle_blown": true
+          },
+          "items": {
+            "has": "lighter"
+          }
         },
-        "exclude": { "flags": { "candle_blown": false } },
+        "exclude": {
+          "flags": {
+            "candle_blown": false
+          }
+        },
         "hidden_text": "需要打火机来点火",
         "effects": {
           "flags": {
@@ -102,41 +109,57 @@
       }
     ]
   },
-
   "thatched_hut_drawer": {
-    "title": "破旧茅草屋",
-    "style": "normal",
-    "description": "你拉开抽屉，里面放着一本<whisper>破旧的日记</whisper>和一把生锈的钥匙。\n日记的封面已经磨损得看不清字迹，但翻开后，你发现里面的文字歪歪扭扭，像是用炭笔匆忙写下的。\n钥匙的尾部刻着一个模糊的标记——看起来是用来开地窖锁的。",
     "description_alt": [
       {
-        "if": { "flags": { "has_diary": true, "has_village_key": true } },
-        "text": "你拉开抽屉，里面空空如也。日记和钥匙都已经被你取走了。"
+        "if": {
+          "flags": {
+            "has_diary": true,
+            "has_village_key": true
+          }
+        }
       },
       {
-        "if": { "flags": { "has_diary": true } },
-        "text": "你拉开抽屉，只剩那把生锈的钥匙还躺在里面。日记已经被你取走了。"
+        "if": {
+          "flags": {
+            "has_diary": true
+          }
+        }
       },
       {
-        "if": { "flags": { "has_village_key": true } },
-        "text": "你拉开抽屉，那本<whisper>破旧的日记</whisper>还在，但钥匙已经被你取走了。"
+        "if": {
+          "flags": {
+            "has_village_key": true
+          }
+        }
       }
     ],
     "options": [
       {
         "text": "【探索】翻阅那本破旧的日记",
         "target_room": "thatched_hut_diary",
-        "require": { "flags": { "has_diary": false } },
+        "require": {
+          "flags": {
+            "has_diary": false
+          }
+        },
         "hidden_text": "日记已取走",
         "effects": {}
       },
       {
         "text": "【拾取】拿起钥匙",
         "target_room": "thatched_hut_drawer",
-        "require": { "flags": { "has_village_key": false } },
+        "require": {
+          "flags": {
+            "has_village_key": false
+          }
+        },
         "hidden_text": "钥匙已取走",
         "effects": {
           "items": {
-            "add": ["village_key"]
+            "add": [
+              "village_key"
+            ]
           },
           "flags": {
             "has_village_key": true
@@ -150,18 +173,16 @@
       }
     ]
   },
-
   "thatched_hut_diary": {
-    "title": "破旧茅草屋",
-    "style": "normal",
-    "description": "你借着淡蓝色的烛光翻阅那本日记。字迹潦草匆忙，但内容不少——三张残页分别记录了关于蜡烛的来历、教皇厅的征税、以及屋后旧地窖的位置。\n\n你把日记合上，小心地收进了怀里。详细的内容之后可以在日记中慢慢翻阅。",
     "options": [
       {
         "text": "【拾取】把日记收起来",
         "target_room": "thatched_hut_drawer",
         "effects": {
           "items": {
-            "add": ["old_diary"]
+            "add": [
+              "old_diary"
+            ]
           },
           "flags": {
             "has_diary": true,
@@ -195,11 +216,7 @@
       }
     ]
   },
-
   "thatched_hut_window": {
-    "title": "破旧茅草屋",
-    "style": "normal",
-    "description": "你走到窗边，透过木板缝隙向外望去。\n外面是一片漆黑的旷野，一轮<ice>银白色的月亮</ice>挂在天上，月光洒在荒芜的大地上，把一切都镀上了一层清冷的光。\n远处隐约可以看到几点<fire>微弱的灯光</fire>，像是一个小村庄。",
     "options": [
       {
         "text": "【返回】回到屋子中央",
@@ -208,22 +225,25 @@
       }
     ]
   },
-
   "outside_hut": {
-    "title": "茅草屋外",
-    "style": "normal",
-    "description": "你推开吱呀作响的木门，一阵凉风扑面而来。\n茅草屋坐落在一片荒芜的空地上，四周是齐腰高的野草。一条被人踩出来的土路蜿蜒向前，但前方弥漫着厚重的雾气，<whisper>根本看不清路的尽头</whisper>。\n一轮<ice>银白色的月亮</ice>挂在天上，月光洒在地上，把一切都镀上了一层清冷的光。\n你注意到茅草屋的墙上画着一些奇怪的符号，像是某种保护标记。\n\n茅草屋的后面，隐约可以看到一扇嵌入地面的木制活板门——那应该就是日记里提到的旧地窖。",
     "description_alt": [
       {
-        "if": { "flags": { "cellar_explored": true } },
-        "text": "你推开木门，门外的雾气已经不知何时散去了。\n一轮<ice>银白色的月亮</ice>挂在天上，月光清冷而明亮。远处那个<fire>闪烁着灯光</fire>的村庄清晰可见，土路蜿蜒通向它，不再被雾气遮挡。\n茅草屋的墙上那些奇怪的符号在月光下泛着微弱的蓝光。\n\n活板门还在那里，敞开着的入口下面隐约透出一股潮湿的气味。"
+        "if": {
+          "flags": {
+            "cellar_explored": true
+          }
+        }
       }
     ],
     "options": [
       {
         "text": "【探索】沿着土路前往村庄",
         "target_room": "village_entrance",
-        "require": { "flags": { "cellar_explored": true } },
+        "require": {
+          "flags": {
+            "cellar_explored": true
+          }
+        },
         "hidden_text": "前方浓雾弥漫，完全看不清路",
         "effects": {}
       },
@@ -236,16 +256,26 @@
         "text": "【探索】打开木制活板门，进入地窖",
         "target_room": "cellar_entrance",
         "require": {
-          "flags": { "has_village_key": true }
+          "flags": {
+            "has_village_key": true
+          }
         },
-        "exclude": { "flags": { "cellar_visited": true } },
+        "exclude": {
+          "flags": {
+            "cellar_visited": true
+          }
+        },
         "hidden_text": "需要生锈的钥匙来打开活板门的锁",
         "effects": {}
       },
       {
         "text": "【探索】再次进入地窖",
         "target_room": "cellar_entrance",
-        "require": { "flags": { "cellar_visited": true } },
+        "require": {
+          "flags": {
+            "cellar_visited": true
+          }
+        },
         "effects": {}
       },
       {
@@ -255,11 +285,7 @@
       }
     ]
   },
-
   "outside_hut_runes": {
-    "title": "茅草屋外",
-    "style": "normal",
-    "description": "你凑近墙壁仔细观察那些符号。\n它们看起来像是某种古老的象形文字和几何图形的结合体，每一笔都画得十分工整。\n这些符号以门框为中心，呈放射状排列，似乎在微风中闪烁着<holy>淡淡的微光</holy>。\n也许这就是日记里提到的「驱逐野兽的符文」。",
     "options": [
       {
         "text": "【返回】停止观察",

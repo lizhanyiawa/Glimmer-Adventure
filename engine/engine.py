@@ -86,12 +86,20 @@ class GameEngine:
             self._items_db = {}
 
     def _load_rooms_db(self):
-        try:
-            with open(data_path("rooms.json"), "r", encoding="utf-8") as f:
-                self._rooms_db = json.load(f)
-        except Exception as e:
-            print(f"[ERROR] 加载 rooms.json 失败: {e}")
-            self._rooms_db = {}
+        rooms_dir = data_path("rooms")
+        self._rooms_db = {}
+        if os.path.isdir(rooms_dir):
+            for filename in sorted(os.listdir(rooms_dir)):
+                if filename.endswith(".json"):
+                    filepath = os.path.join(rooms_dir, filename)
+                    try:
+                        with open(filepath, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                            self._rooms_db.update(data)
+                    except Exception as e:
+                        print(f"[ERROR] 加载 {filename} 失败: {e}")
+        if not self._rooms_db:
+            print("[ERROR] 未能加载任何房间数据")
 
     def _load_dialogues_db(self):
         try:
@@ -279,6 +287,19 @@ class GameEngine:
                     t["done"] = True
                     self.state.flags["diary_unread"] = True
                     break
+
+        import datetime
+        for note in effects.get("notes", {}).get("add", []):
+            existing = self.state.diary["notes"]
+            note_id = note.get("id", f"note_{len(existing)}")
+            if not any(n.get("id") == note_id for n in existing):
+                existing.append({
+                    "id": note_id,
+                    "title": note.get("title", "未命名笔记"),
+                    "content": note.get("content", ""),
+                    "created": note.get("created", datetime.datetime.now().strftime("%Y-%m-%d %H:%M")),
+                })
+                self.state.flags["diary_unread"] = True
 
     def select_option(self, option: Dict[str, Any]) -> Dict[str, Any]:
         effects = option.get("effects", {})

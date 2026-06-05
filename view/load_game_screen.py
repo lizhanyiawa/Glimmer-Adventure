@@ -53,7 +53,7 @@ class LoadGameScreen(Screen):
     }
     LoadConfirmScreen {
         align: center middle;
-        background: rgba(0,0,0,0.65);
+        background: rgba(0,0,0,0.0);
     }
     #confirm_box {
         width: 48;

@@ -11,6 +11,7 @@ class DiaryScreen(Screen):
         ("down", "next_item", "下一个"),
         ("n", "new_note", "新建笔记"),
         ("d", "delete_note", "删除笔记"),
+        ("t", "track", "追踪任务"),
     ]
 
     CSS = """
@@ -110,6 +111,17 @@ class DiaryScreen(Screen):
         text-align: center;
         width: 100%;
     }
+    #tracked_task_btn {
+        width: 100%;
+        background: #1a1a10;
+        color: #e6b800;
+        border: solid #e6b800;
+    }
+    #tracked_task_btn:hover {
+        background: #e6b800;
+        color: #0b0c10;
+        text-style: bold;
+    }
     #new_note_btn {
         width: 100%;
         background: #e6b800;
@@ -186,14 +198,16 @@ class DiaryScreen(Screen):
                 yield Static("", id="entry_detail")
 
             with Vertical(id="diary_footer"):
-                yield Static("[N] 新建笔记  [D] 删除笔记  ·  点击关闭按钮或按 ESC 返回", classes="diary_title")
+                yield Static("[N] 新建笔记  [D] 删除笔记  [T] 追踪  ·  点击关闭按钮或按 ESC 返回", classes="diary_title")
                 with Horizontal():
                     yield Button("[N] 新建笔记", id="new_note_btn")
+                    yield Button("[T] 追踪任务", id="tracked_task_btn")
                     yield Button("[D] 删除笔记", id="delete_note_btn")
                     yield Button("[ 关闭 ]", id="close_diary_btn")
 
     def on_mount(self):
         self.query_one("#delete_note_btn").display = False
+        self.query_one("#tracked_task_btn").display = False
         self._has_unread = self.app.engine.state.flags.get("diary_unread", False)
         self.app.engine.state.flags["diary_unread"] = False
         self._build_entry_list()
@@ -276,6 +290,13 @@ class DiaryScreen(Screen):
         etype, _, data = entry
         if etype == "task":
             self.query_one("#delete_note_btn").display = False
+            self.query_one("#tracked_task_btn").display = True
+            tracked_id = self.app.engine.state.flags.get("tracked_task_id", "")
+            task_id = data.get("id", "")
+            if tracked_id == task_id:
+                self.query_one("#tracked_task_btn").label = "[T] 取消追踪"
+            else:
+                self.query_one("#tracked_task_btn").label = "[T] 追踪任务"
             done = data.get("done", False)
             status = "[#557766]已完成[/]" if done else "[#66fcf1]进行中[/]"
             lines = [
@@ -286,6 +307,7 @@ class DiaryScreen(Screen):
             ]
         else:
             self.query_one("#delete_note_btn").display = True
+            self.query_one("#tracked_task_btn").display = False
             created = data.get("created", "")
             lines = [
                 f"[b #ffaa00]{data.get('title', '???')}[/]",
@@ -303,6 +325,8 @@ class DiaryScreen(Screen):
             self.action_new_note()
         elif btn_id == "delete_note_btn":
             self.action_delete_note()
+        elif btn_id == "tracked_task_btn":
+            self.action_track()
         elif btn_id.startswith("entry_"):
             index = int(btn_id.split("_")[1])
             self._select(index)
@@ -345,7 +369,39 @@ class DiaryScreen(Screen):
         else:
             self.query_one("#entry_detail", Static).update("")
             self.query_one("#delete_note_btn").display = False
+            self.query_one("#tracked_task_btn").display = False
         self.notify("笔记已删除")
+
+    def action_track(self):
+        if not self._entries or self._selected >= len(self._entries):
+            return
+        entry = self._entries[self._selected]
+        etype, _, data = entry
+        if etype != "task":
+            self.notify("只能追踪任务", title="提示")
+            return
+
+        task_id = data.get("id", "")
+        current = self.app.engine.state.flags.get("tracked_task_id", "")
+
+        if current == task_id:
+            self.app.engine.state.flags["tracked_task_id"] = ""
+            self.query_one("#tracked_task_btn").label = "[T] 追踪任务"
+            self.notify("已取消追踪")
+        else:
+            self.app.engine.state.flags["tracked_task_id"] = task_id
+            self.query_one("#tracked_task_btn").label = "[T] 取消追踪"
+            self.notify(f"正在追踪: {data.get('title', '???')}")
+
+        # 刷新主界面的追踪任务显示
+        if self.app.screen_stack:
+            main = None
+            for s in reversed(self.app.screen_stack):
+                if hasattr(s, "_refresh_tracked_task"):
+                    main = s
+                    break
+            if main:
+                main._refresh_tracked_task()
 
     def _on_note_saved(self, title: str, content: str):
         if not title.strip():

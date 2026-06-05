@@ -55,6 +55,8 @@ class GamePlayScreen(Screen):
         ("2", "option2", "选项 2"),
         ("3", "option3", "选项 3"),
         ("4", "option4", "选项 4"),
+        ("5", "option5", "选项 5"),
+        ("6", "option6", "选项 6"),
         ("p", "profile", "人物"),
         ("i", "inventory", "物品"),
         ("d", "diary", "日记"),
@@ -128,12 +130,32 @@ class GamePlayScreen(Screen):
         background: #1f2833;
         padding: 1 2;
     }
-    #history_box {
+    #right_panel {
         width: 35%;
         height: 100%;
+        margin-left: 1;
+    }
+    #history_box {
+        width: 100%;
+        height: 1fr;
         border: dashed #555555;
         background: #0f1016;
-        margin-left: 1;
+    }
+    #tracked_task {
+        width: 100%;
+        height: 3;
+        border: solid #e6b800;
+        background: #1a1a10;
+        color: #e6b800;
+        content-align: center middle;
+        text-align: center;
+        text-style: bold;
+    }
+    .tracked_empty {
+        border: dashed #333333 !important;
+        background: #0f1016 !important;
+        color: #555555 !important;
+        text-style: none !important;
     }
     #bottom_console {
         height: 12;
@@ -141,8 +163,8 @@ class GamePlayScreen(Screen):
     #story_options {
         width: 65%;
         layout: grid;
-        grid-size: 2 2;
-        grid-columns: 1fr 1fr;
+        grid-size: 3 2;
+        grid-columns: 1fr 1fr 1fr;
         grid-rows: 1fr 1fr;
         grid-gutter: 1 2;
     }
@@ -239,7 +261,9 @@ class GamePlayScreen(Screen):
 
         with Horizontal(id="main_viewport"):
             yield TypewriterLog("", id="story_box")
-            yield RichLog(id="history_box", markup=True, wrap=True, max_lines=engine.settings.get("history_lines", 200))
+            with Vertical(id="right_panel"):
+                yield RichLog(id="history_box", markup=True, wrap=True, max_lines=engine.settings.get("history_lines", 200))
+                yield Static("", id="tracked_task")
 
         with Horizontal(id="bottom_console"):
             with Container(id="story_options"):
@@ -247,6 +271,8 @@ class GamePlayScreen(Screen):
                 yield Button("[2] 选项 2", id="opt2", classes="opt_btn")
                 yield Button("[3] 选项 3", id="opt3", classes="opt_btn")
                 yield Button("[4] 选项 4", id="opt4", classes="opt_btn")
+                yield Button("[5] 选项 5", id="opt5", classes="opt_btn")
+                yield Button("[6] 选项 6", id="opt6", classes="opt_btn")
             with Horizontal(id="system_options"):
                 with Vertical(id="left_buttons"):
                     yield Button("[P] 人物", id="btn_profile", classes="sys_btn")
@@ -254,20 +280,40 @@ class GamePlayScreen(Screen):
                     yield Button("[S] 保存", id="btn_save", classes="sys_btn")
                     yield Button("[ ] ---", id="btn_empty1", classes="sys_btn", disabled=True)
                     yield Button("[ ] ---", id="btn_empty2", classes="sys_btn", disabled=True)
-                    yield Button("[ ] ---", id="btn_empty3", classes="sys_btn", disabled=True)
                 with Vertical(id="right_buttons"):
                     self._btn_diary = Button("[ ] ---", id="btn_diary", classes="sys_btn", disabled=True)
                     yield self._btn_diary
                     yield Button("[O] 设置", id="btn_menu_settings", classes="sys_btn")
+                    yield Button("[ ] ---", id="btn_empty3", classes="sys_btn", disabled=True)
                     yield Button("[ ] ---", id="btn_empty4", classes="sys_btn", disabled=True)
                     yield Button("[ ] ---", id="btn_empty5", classes="sys_btn", disabled=True)
-                    yield Button("[ ] ---", id="btn_empty6", classes="sys_btn", disabled=True)
-                    yield Button("[ ] ---", id="btn_empty7", classes="sys_btn", disabled=True)
 
     def on_mount(self):
         self.call_after_refresh(self.load_current_room)
         self._refresh_diary_button()
+        self._refresh_tracked_task()
         self._update_ui_colors()
+
+    def _refresh_tracked_task(self):
+        tracked_id = self.app.engine.state.flags.get("tracked_task_id", "")
+        tasks = self.app.engine.state.diary.get("tasks", [])
+        tracked_widget = self.query_one("#tracked_task", Static)
+
+        if tracked_id:
+            for t in tasks:
+                if t.get("id") == tracked_id:
+                    done = t.get("done", False)
+                    prefix = "✓ " if done else ""
+                    tracked_widget.update(f"追踪任务: {prefix}{t.get('title', '???')}")
+                    tracked_widget.set_class(False, "tracked_empty")
+                    return
+            # task not found, clear tracking
+            self.app.engine.state.flags["tracked_task_id"] = ""
+            tracked_widget.update("")
+            tracked_widget.set_class(True, "tracked_empty")
+        else:
+            tracked_widget.update("")
+            tracked_widget.set_class(True, "tracked_empty")
 
     def _update_ui_colors(self):
         engine = self.app.engine
@@ -294,7 +340,7 @@ class GamePlayScreen(Screen):
         self.query_one("#status_bar").styles.border = ("solid", border_color)
         self.query_one("#story_box").styles.border = ("solid", border_color)
 
-        for btn_id in ["opt1", "opt2", "opt3", "opt4"]:
+        for btn_id in ["opt1", "opt2", "opt3", "opt4", "opt5", "opt6"]:
             try:
                 btn = self.query_one(f"#{btn_id}", Button)
                 if not btn.disabled:
@@ -343,9 +389,6 @@ class GamePlayScreen(Screen):
         self._flash_on = not self._flash_on
         self._btn_diary.set_class(self._flash_on, "diary_flash")
 
-    # 加载当前房间数据并刷新UI
-   # 加载当前房间数据并刷新UI
-    # 加载当前房间数据并刷新UI
     def load_current_room(self):
         engine = self.app.engine
         room_id = engine.state.room_id
@@ -378,7 +421,7 @@ class GamePlayScreen(Screen):
         else:
             self.query_one("#lbl_location", LocationWidget).update_location(node_data.get("title", room_id))
 
-        btn_map = ["opt1", "opt2", "opt3", "opt4"]
+        btn_map = ["opt1", "opt2", "opt3", "opt4", "opt5", "opt6"]
         for btn_id in btn_map:
             btn = self.query_one(f"#{btn_id}", Button)
             btn.label = "[·] 聆听常识流动中..."
@@ -414,7 +457,6 @@ class GamePlayScreen(Screen):
             on_complete=show_options_after_typing
         )
 
-    # 刷新选项按钮
     def refresh_options(self, room_data: dict):
         options = room_data.get("options", [])
         engine = self.app.engine
@@ -422,7 +464,7 @@ class GamePlayScreen(Screen):
         compacted = self._get_compacted_options(options)
         self._compacted_mapping = compacted
 
-        btn_map = ["opt1", "opt2", "opt3", "opt4"]
+        btn_map = ["opt1", "opt2", "opt3", "opt4", "opt5", "opt6"]
         for i, btn_id in enumerate(btn_map):
             btn = self.query_one(f"#{btn_id}", Button)
             if i < len(compacted):
@@ -450,11 +492,13 @@ class GamePlayScreen(Screen):
                     result.append((option, True, hidden_text))
         return result
 
-    # 键盘动作：选项1-4
+    # 键盘动作：选项1-6
     def action_option1(self): self.select_option(0)
     def action_option2(self): self.select_option(1)
     def action_option3(self): self.select_option(2)
     def action_option4(self): self.select_option(3)
+    def action_option5(self): self.select_option(4)
+    def action_option6(self): self.select_option(5)
 
     def select_option(self, index: int):
         compacted = getattr(self, '_compacted_mapping', [])
@@ -466,14 +510,11 @@ class GamePlayScreen(Screen):
 
         engine = self.app.engine
 
-        # 执行因果改变
         result = engine.select_option(option)
         
-        # 记录玩家的选择到历史记录
         history_log = self.query_one("#history_box", RichLog)
         history_log.write(f"\n[bold white]【你】[/bold white][cyan]「{option.get('text', '')}」[/cyan]")
 
-        # 属性变化反馈
         effects = result.get("effects_applied", {})
 
         changes = engine.resolve_stats_changes(effects)
@@ -505,6 +546,7 @@ class GamePlayScreen(Screen):
 
         self.load_current_room()
         self._refresh_diary_button()
+        self._refresh_tracked_task()
 
     def action_profile(self):
         from view.profile_screen import ProfileScreen
@@ -546,6 +588,6 @@ class GamePlayScreen(Screen):
             self.action_save()
         elif btn_id == "btn_menu_settings":
             self.action_settings()
-        elif btn_id in ("opt1", "opt2", "opt3", "opt4"):
+        elif btn_id in ("opt1", "opt2", "opt3", "opt4", "opt5", "opt6"):
             index = int(btn_id[-1]) - 1
             self.select_option(index)

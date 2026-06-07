@@ -14,7 +14,7 @@ class ProfileScreen(Screen):
         background: rgba(0,0,0,0.7);
     }
     #profile_box {
-        width: 58;
+        width: 60;
         height: auto;
         border: thick #ff007f;
         background: #161923;
@@ -29,6 +29,18 @@ class ProfileScreen(Screen):
     .stat_line {
         color: #b2b2b2;
         text-align: left;
+    }
+    #equip_btn {
+        width: 100%;
+        background: #23283b;
+        color: #ddaa00;
+        border: none;
+        margin-top: 1;
+    }
+    #equip_btn:hover {
+        background: #ddaa00;
+        text-style: bold;
+        color: #0b0c10;
     }
     #close_prof_btn {
         width: 100%;
@@ -60,11 +72,15 @@ class ProfileScreen(Screen):
             yield Static(f"智力: {stats.get('intelligence', 0)}", classes="stat_line")
             yield Static(f"敏捷: {stats.get('agility', 0)}", classes="stat_line")
 
+            yield Button("[E] 装备", id="equip_btn")
             yield Button("[ESC] 关闭", id="close_prof_btn")
 
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "close_prof_btn":
             self.action_close()
+        elif event.button.id == "equip_btn":
+            from view.equipment_screen import EquipmentScreen
+            self.app.push_screen(EquipmentScreen())
 
     def action_close(self):
         self.app.pop_screen()

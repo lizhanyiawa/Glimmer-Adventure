@@ -32,6 +32,7 @@ class SaveManager:
             "last_saved": state.last_saved,
             "stats": dict(state.stats),
             "inventory": list(state.inventory),
+            "equipment": dict(state.equipment),
             "diary": {
                 "tasks": list(state.diary.get("tasks", [])),
                 "notes": list(state.diary.get("notes", [])),
@@ -73,6 +74,13 @@ class SaveManager:
             clean = [item for item in saved_inv if isinstance(item, dict) and "id" in item and "name" in item]
             if clean:
                 state.inventory = clean
+
+        saved_equip = data.get("equipment", {})
+        if isinstance(saved_equip, dict):
+            for slot, entry in saved_equip.items():
+                if isinstance(entry, dict) and "item_id" in entry:
+                    if isinstance(entry.get("stats"), dict):
+                        state.equipment[slot] = entry
 
         saved_flags = data.get("flags", {})
         if isinstance(saved_flags, dict):

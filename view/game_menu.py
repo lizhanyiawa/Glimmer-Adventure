@@ -16,6 +16,7 @@ STATS_NAMES = {
     "defense": "防御",
     "intelligence": "智力",
     "agility": "敏捷",
+    "coins": "铜币",
 }
 
 class LocationWidget(Static):
@@ -255,9 +256,9 @@ class GamePlayScreen(Screen):
                 with Container(id="location_center"):
                     yield LocationWidget("位置: 加载中...", id="lbl_location")
                 with Vertical(id="stats_right"):
-                    yield Static(f"ATK: {stats.get('attack', 0)}  DEF: {stats.get('defense', 0)}", classes="status_tag")
-                    yield Static(f"INT: {stats.get('intelligence', 0)}  AGI: {stats.get('agility', 0)}", classes="status_tag")
-                    yield Static(f"COR: {stats.get('corruption', 0)}%", classes="status_tag")
+                    yield Static(f"ATK: {stats.get('attack', 0)}  DEF: {stats.get('defense', 0)}", classes="status_tag", id="txt_combat")
+                    yield Static(f"INT: {stats.get('intelligence', 0)}  AGI: {stats.get('agility', 0)}", classes="status_tag", id="txt_mind")
+                    yield Static(f"COR: {stats.get('corruption', 0)}%", classes="status_tag", id="txt_wealth")
 
         with Horizontal(id="main_viewport"):
             yield TypewriterLog("", id="story_box")
@@ -284,7 +285,7 @@ class GamePlayScreen(Screen):
                     self._btn_diary = Button("[ ] ---", id="btn_diary", classes="sys_btn", disabled=True)
                     yield self._btn_diary
                     yield Button("[O] 设置", id="btn_menu_settings", classes="sys_btn")
-                    yield Button("[ ] ---", id="btn_empty3", classes="sys_btn", disabled=True)
+                    yield Button("[T] 交易", id="btn_shop", classes="sys_btn")
                     yield Button("[ ] ---", id="btn_empty4", classes="sys_btn", disabled=True)
                     yield Button("[ ] ---", id="btn_empty5", classes="sys_btn", disabled=True)
 
@@ -293,6 +294,22 @@ class GamePlayScreen(Screen):
         self._refresh_diary_button()
         self._refresh_tracked_task()
         self._update_ui_colors()
+
+    def on_screen_resumed(self):
+        """从子界面（商店/战斗等）返回时刷新状态栏。"""
+        self._refresh_status_bar()
+        self._refresh_diary_button()
+        self._refresh_tracked_task()
+        self._update_ui_colors()
+
+    def _refresh_status_bar(self):
+        """刷新 HP/SAN/属性/铜币 等状态显示。使用目标更新，避免闪烁。"""
+        stats = self.app.engine.state.stats
+        self.query_one("#pb_hp", StatBar).update_stat(stats.get("hp", 100), stats.get("max_hp", 100))
+        self.query_one("#pb_san", StatBar).update_stat(stats.get("san", 100), 100)
+        self.query_one("#txt_combat", Static).update(f"ATK: {stats.get('attack', 0)}  DEF: {stats.get('defense', 0)}")
+        self.query_one("#txt_mind", Static).update(f"INT: {stats.get('intelligence', 0)}  AGI: {stats.get('agility', 0)}")
+        self.query_one("#txt_wealth", Static).update(f"COR: {stats.get('corruption', 0)}%")
 
     def _refresh_tracked_task(self):
         engine = self.app.engine
@@ -396,8 +413,7 @@ class GamePlayScreen(Screen):
         dialogue_id = engine.state.dialogue_id
         stats = engine.state.stats
 
-        self.query_one("#pb_hp", StatBar).update_stat(stats.get("hp", 100), stats.get("max_hp", 100))
-        self.query_one("#pb_san", StatBar).update_stat(stats.get("san", 100), 100)
+        self._refresh_status_bar()
         self._update_ui_colors()
 
         node_data = None
@@ -543,6 +559,12 @@ class GamePlayScreen(Screen):
             self.app.push_screen(BattleScreen(battle_id, post_battle))
             return
 
+        shop_id = option.get("shop")
+        if shop_id:
+            from view.shop_screen import ShopScreen
+            self.app.push_screen(ShopScreen(shop_id))
+            return
+
         self.load_current_room()
         self._refresh_diary_button()
         self._refresh_tracked_task()
@@ -567,6 +589,15 @@ class GamePlayScreen(Screen):
         from view.global_settings import GlobalSettingsScreen
         self.app.push_screen(GlobalSettingsScreen())
 
+    def action_shop(self):
+        room = self.app.engine.get_room(self.app.engine.state.room_id)
+        shop_id = room.get("shop") if room else None
+        if shop_id:
+            from view.shop_screen import ShopScreen
+            self.app.push_screen(ShopScreen(shop_id))
+        else:
+            self.notify("这里没有可以交易的对象", title="提示", timeout=2)
+
     def action_menu(self):
         if len(self.app.screen_stack) <= 1:
             return
@@ -587,6 +618,8 @@ class GamePlayScreen(Screen):
             self.action_save()
         elif btn_id == "btn_menu_settings":
             self.action_settings()
+        elif btn_id == "btn_shop":
+            self.action_shop()
         elif btn_id in ("opt1", "opt2", "opt3", "opt4", "opt5", "opt6"):
             index = int(btn_id[-1]) - 1
             self.select_option(index)

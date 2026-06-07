@@ -291,7 +291,7 @@ class BattleScreen(Screen):
 
         self.query_one("#battle_story", TypewriterLog).type_text(
             encounter_text,
-            speed="medium",
+            speed=self._get_speed(),
             on_complete=self._wait_for_continue,
         )
         self._cont_callback = self._start_turn
@@ -384,6 +384,13 @@ class BattleScreen(Screen):
 
     # ── 玩家行动 ──
 
+    def _get_speed(self):
+        """读取引擎设置的打字机速度。"""
+        try:
+            return self.app.engine.settings.get("text_speed", "medium")
+        except Exception:
+            return "medium"
+
     def _player_attack(self):
         self._disable_buttons()
         self._close_action_menu()
@@ -392,7 +399,7 @@ class BattleScreen(Screen):
         self._refresh_bars(enemy_dmg=dmg)
         self._cont_callback = self._start_turn
         self.query_one("#battle_story", TypewriterLog).type_text(
-            text, speed="medium", on_complete=self._wait_for_continue
+            text, speed=self._get_speed(), on_complete=self._wait_for_continue
         )
 
     def _player_defend(self):
@@ -403,7 +410,7 @@ class BattleScreen(Screen):
         self._refresh_bars()
         self._cont_callback = self._start_turn
         self.query_one("#battle_story", TypewriterLog).type_text(
-            result, speed="medium", on_complete=self._wait_for_continue
+            result, speed=self._get_speed(), on_complete=self._wait_for_continue
         )
 
     def _player_investigate(self):
@@ -414,7 +421,7 @@ class BattleScreen(Screen):
         self._refresh_bars()
         self._cont_callback = self._start_turn
         self.query_one("#battle_story", TypewriterLog).type_text(
-            result, speed="medium", on_complete=self._wait_for_continue
+            result, speed=self._get_speed(), on_complete=self._wait_for_continue
         )
 
     def _player_flee(self):
@@ -424,7 +431,7 @@ class BattleScreen(Screen):
         self._write_history(msg)
         self._cont_callback = self._close_battle if success else self._start_turn
         self.query_one("#battle_story", TypewriterLog).type_text(
-            msg, speed="medium", on_complete=self._wait_for_continue
+            msg, speed=self._get_speed(), on_complete=self._wait_for_continue
         )
 
     # ── 敌人行动 ──
@@ -435,7 +442,7 @@ class BattleScreen(Screen):
         self._refresh_bars(player_dmg=dmg)
         self._cont_callback = self._start_turn
         self.query_one("#battle_story", TypewriterLog).type_text(
-            result, speed="medium", on_complete=self._wait_for_continue
+            result, speed=self._get_speed(), on_complete=self._wait_for_continue
         )
 
     # ── 战斗结束 ──
@@ -452,7 +459,7 @@ class BattleScreen(Screen):
             self._cont_callback = self._game_over
             self.query_one("#battle_story", TypewriterLog).type_text(
                 "<fire>你失去了意识……</fire>",
-                speed="slow",
+                speed=self._get_speed(),
                 on_complete=self._wait_for_continue,
             )
 
@@ -478,7 +485,7 @@ class BattleScreen(Screen):
 
         self._cont_callback = self._close_battle
         self.query_one("#battle_story", TypewriterLog).type_text(
-            "\n".join(stanzas), speed="medium", on_complete=self._wait_for_continue
+            "\n".join(stanzas), speed=self._get_speed(), on_complete=self._wait_for_continue
         )
 
     def _apply_post_battle(self):
@@ -487,9 +494,13 @@ class BattleScreen(Screen):
 
     def _close_battle(self):
         self.app.pop_screen()
-        if hasattr(self.app, "gameplay_screen") and self.app.gameplay_screen:
-            self.app.gameplay_screen.load_current_room()
-            self.app.gameplay_screen._refresh_diary_button()
+        # 确保 gameplay 刷新房间（击败怪物后 exclude 生效）
+        for s in self.app.screen_stack:
+            if hasattr(s, "load_current_room"):
+                s.load_current_room()
+                if hasattr(s, "_refresh_diary_button"):
+                    s._refresh_diary_button()
+                break
 
     def _game_over(self):
         self.app.pop_screen()

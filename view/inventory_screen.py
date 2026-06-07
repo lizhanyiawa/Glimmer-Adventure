@@ -16,8 +16,8 @@ class InventoryScreen(Screen):
         background: rgba(0, 0, 0, 0.75);
     }
     #inv_box {
-        width: 64;
-        height: 34;
+        width: 72;
+        height: 36;
         border: thick #66fcf1;
         background: #161923;
         padding: 1 2;
@@ -30,17 +30,17 @@ class InventoryScreen(Screen):
         height: 1;
     }
     #inv_main {
-        height: 24;
+        height: 26;
     }
     #item_list {
-        width: 24;
+        width: 30;
         height: 100%;
         border: solid #333333;
         background: #0f1016;
         overflow-y: auto;
     }
     #item_detail {
-        width: 36;
+        width: 40;
         height: 100%;
         border: solid #333333;
         background: #0f1016;
@@ -109,7 +109,7 @@ class InventoryScreen(Screen):
         margin-top: 1;
     }
     #inv_footer {
-        height: 4;
+        height: 5;
         margin-top: 1;
     }
     #close_inv_btn {
@@ -148,6 +148,7 @@ class InventoryScreen(Screen):
 
             with Vertical(id="inv_footer"):
                 yield Static("↑↓ 选择物品  ·  [ 关闭 ] 点击下方按钮或按 ESC", classes="inv_title")
+                yield Static(f"💰 铜币: {self.app.engine.state.stats.get('coins', 0)}", classes="inv_title")
                 yield Button("[ 关闭 ]", id="close_inv_btn")
 
     def on_mount(self):
@@ -163,7 +164,7 @@ class InventoryScreen(Screen):
             if not isinstance(item, dict):
                 continue
             qty = item.get("qty", 1)
-            qty_str = f" x{qty}" if qty > 1 else ""
+            qty_str = f" x{qty}"
             label = f"{item['name']}{qty_str}"
             btn = Button(label, id=f"item_{i}")
             btn.can_focus = True

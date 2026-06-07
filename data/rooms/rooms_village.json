@@ -107,6 +107,7 @@
     ]
   },
   "village_tavern": {
+    "shop": "village_tavern_shop",
     "description_alt": [
       {
         "if": {
@@ -138,6 +139,11 @@
         "effects": {}
       },
       {
+        "text": "【交易】买东西",
+        "shop": "village_tavern_shop",
+        "effects": {}
+      },
+      {
         "text": "【探索】观察酒馆里的其他客人",
         "target_room": "village_tavern_guests",
         "effects": {}
@@ -163,6 +169,7 @@
     ]
   },
   "village_alchemy": {
+    "shop": "village_alchemy_shop",
     "options": [
       {
         "text": "【对话】和她交谈",
@@ -182,6 +189,11 @@
             "met_lillian": true
           }
         },
+        "effects": {}
+      },
+      {
+        "text": "【交易】买药水",
+        "shop": "village_alchemy_shop",
         "effects": {}
       },
       {

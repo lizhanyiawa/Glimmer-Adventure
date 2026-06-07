@@ -81,6 +81,7 @@ class GameState:
         }
 
         self.inventory: List[Dict[str, Any]] = []
+        self.equipment: Dict[str, Any] = {}
 
         self.diary: Dict[str, Any] = {
             "tasks": [],
@@ -457,6 +458,183 @@ class GameEngine:
                     "created": note.get("created", datetime.datetime.now().strftime("%Y-%m-%d %H:%M")),
                 })
                 self.set_flag("sys_diary_unread", True)
+
+    # ── 商店系统 ──
+    _shops_db: Dict[str, Any] = {}
+
+    def _load_shops_db(self):
+        """加载 shops.json。延迟加载，首次调用 get_shop 时触发。"""
+        if self._shops_db:
+            return
+        try:
+            with open(data_path("shops.json"), "r", encoding="utf-8") as f:
+                self._shops_db = json.load(f)
+        except Exception as e:
+            logger.warning("加载 shops.json 失败: %s", e)
+            self._shops_db = {}
+
+    def get_shop(self, shop_id: str) -> Dict[str, Any]:
+        """返回商店数据，包含 items 列表（每个 item 自动展开物品定义）。"""
+        self._load_shops_db()
+        shop = dict(self._shops_db.get(shop_id, {}))
+        if not shop:
+            return {}
+
+        shop["id"] = shop_id
+        rich_items = []
+        for entry in shop.get("items", []):
+            item_def = self._items_db.get(entry["item_id"], {})
+            rich_items.append({
+                "item_id": entry["item_id"],
+                "name": item_def.get("name", entry["item_id"]),
+                "desc": item_def.get("desc", ""),
+                "type": item_def.get("type", "misc"),
+                "price": entry["price"],
+                "stock": entry.get("stock", -1),
+            })
+        shop["items"] = rich_items
+        return shop
+
+    def buy_item(self, shop_id: str, item_id: str, qty: int = 1) -> Dict[str, Any]:
+        """从商店购买物品。返回 {success, message, cost}。"""
+        shop = self.get_shop(shop_id)
+        if not shop:
+            return {"success": False, "message": "商店不存在。", "cost": 0}
+
+        shop_entry = None
+        for entry in self._shops_db.get(shop_id, {}).get("items", []):
+            if entry["item_id"] == item_id:
+                shop_entry = entry
+                break
+
+        if not shop_entry:
+            return {"success": False, "message": "该商品不出售。", "cost": 0}
+
+        stock = shop_entry.get("stock", -1)
+        if stock >= 0 and stock < qty:
+            return {"success": False, "message": "库存不足。", "cost": 0}
+
+        cost = shop_entry["price"] * qty
+        coins = self.state.stats.get("coins", 0)
+        if coins < cost:
+            return {"success": False, "message": f"铜币不足——需要 {cost} 枚，你只有 {coins} 枚。", "cost": 0}
+
+        self.state.stats["coins"] = coins - cost
+        self.inv_mgr.add_by_id(item_id, qty)
+
+        if stock >= 0:
+            shop_entry["stock"] = stock - qty
+
+        item_def = self._items_db.get(item_id, {})
+        return {
+            "success": True,
+            "message": f"购买了{item_def.get('name', item_id)} ×{qty}。",
+            "cost": cost,
+        }
+
+    def sell_item(self, item_id: str, qty: int = 1) -> Dict[str, Any]:
+        """出售物品给商店。返回 {success, message, earned}。"""
+        item_def = self._items_db.get(item_id, {})
+        if not item_def:
+            return {"success": False, "message": "物品不存在。", "earned": 0}
+
+        value = item_def.get("value", 0)
+        if value <= 0:
+            return {"success": False, "message": "这东西卖不了钱。", "earned": 0}
+
+        owned = self.inv_mgr.has(item_id, qty)
+        if not owned:
+            return {"success": False, "message": "你没有足够的该物品。", "earned": 0}
+
+        earned = int(value * qty * 0.4)
+        self.inv_mgr.remove(item_id, qty)
+        self.state.stats["coins"] = self.state.stats.get("coins", 0) + earned
+
+        return {
+            "success": True,
+            "message": f"出售了{item_def.get('name', item_id)} ×{qty}，获得 {earned} 枚铜币。",
+            "earned": earned,
+        }
+
+    # ── 装备系统 ──
+
+    EQUIP_SLOTS = ["weapon", "armor", "accessory"]
+
+    def equip(self, item_id: str) -> Dict[str, Any]:
+        """装备一件物品。返回操作结果。"""
+        item_def = self._items_db.get(item_id)
+        if not item_def:
+            return {"success": False, "message": "物品数据不存在"}
+
+        slot = item_def.get("equip_slot")
+        if not slot:
+            return {"success": False, "message": "这件物品无法装备"}
+
+        equip_stats = item_def.get("equip_stats", {})
+        if not equip_stats:
+            return {"success": False, "message": "这件物品没有属性加成"}
+
+        # 检查是否已装备同位置
+        if slot in self.state.equipment:
+            return {"success": False, "message": "该位置已有装备，请先卸下"}
+
+        # 从背包移除
+        removed = self.inv_mgr.remove(item_id, 1)
+        if not removed:
+            return {"success": False, "message": "背包中没有这件物品"}
+
+        # 应用属性
+        for stat_key, delta in equip_stats.items():
+            if stat_key in self.state.stats:
+                self.state.stats[stat_key] += delta
+
+        # 记录装备
+        self.state.equipment[slot] = {
+            "item_id": item_id,
+            "name": item_def.get("name", item_id),
+            "stats": dict(equip_stats),
+        }
+
+        return {"success": True, "message": f"装备了 {item_def['name']}",
+                "slot": slot, "stats": equip_stats}
+
+    def unequip(self, slot: str) -> Dict[str, Any]:
+        """卸下指定位置的装备。"""
+        if slot not in self.state.equipment:
+            return {"success": False, "message": "该位置没有装备"}
+
+        entry = self.state.equipment[slot]
+        item_id = entry["item_id"]
+
+        # 移除属性加成
+        for stat_key, delta in entry.get("stats", {}).items():
+            if stat_key in self.state.stats:
+                self.state.stats[stat_key] = max(0, self.state.stats[stat_key] - delta)
+
+        # 归还到背包
+        item_def = self._items_db.get(item_id, {})
+        self.inv_mgr.add(
+            item_id,
+            item_def.get("name", entry.get("name", item_id)),
+            item_def.get("desc", ""),
+            item_def.get("type", "misc"),
+            1,
+        )
+
+        del self.state.equipment[slot]
+        return {"success": True, "message": f"卸下了 {entry['name']}", "slot": slot}
+
+    def get_equipment(self) -> Dict[str, Any]:
+        """返回当前装备信息。"""
+        return dict(self.state.equipment)
+
+    def get_equipped_stats_summary(self) -> Dict[str, int]:
+        """汇总所有装备的属性加成。"""
+        total = {}
+        for entry in self.state.equipment.values():
+            for k, v in entry.get("stats", {}).items():
+                total[k] = total.get(k, 0) + v
+        return total
 
     def select_option(self, option: Dict[str, Any]) -> Dict[str, Any]:
         effects = option.get("effects", {})

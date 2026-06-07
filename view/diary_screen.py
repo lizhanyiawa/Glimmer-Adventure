@@ -20,8 +20,8 @@ class DiaryScreen(Screen):
         background: rgba(0, 0, 0, 0.75);
     }
     #diary_box {
-        width: 66;
-        height: 34;
+        width: 72;
+        height: 36;
         border: thick #e6b800;
         background: #161923;
         padding: 1 2;
@@ -34,10 +34,10 @@ class DiaryScreen(Screen):
         height: 1;
     }
     #diary_main {
-        height: 24;
+        height: 26;
     }
     #entry_list {
-        width: 26;
+        width: 30;
         height: 100%;
         border: solid #444444;
         background: #0f1016;
@@ -93,7 +93,7 @@ class DiaryScreen(Screen):
         background: #1f2833;
     }
     #entry_detail {
-        width: 36;
+        width: 40;
         height: 100%;
         border: solid #444444;
         background: #0f1016;
@@ -103,7 +103,7 @@ class DiaryScreen(Screen):
         overflow-y: auto;
     }
     #diary_footer {
-        height: 4;
+        height: 5;
         margin-top: 1;
     }
     #diary_footer Static {
@@ -203,7 +203,7 @@ class DiaryScreen(Screen):
                     yield Button("[N] 新建笔记", id="new_note_btn")
                     yield Button("[T] 追踪任务", id="tracked_task_btn")
                     yield Button("[D] 删除笔记", id="delete_note_btn")
-                    yield Button("[ 关闭 ]", id="close_diary_btn")
+                yield Button("[ 关闭 ]", id="close_diary_btn")
 
     def on_mount(self):
         engine = self.app.engine

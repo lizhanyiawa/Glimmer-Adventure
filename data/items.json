@@ -1,38 +1,77 @@
 {
+  "coins": {
+    "name": "铜币",
+    "type": "currency",
+    "value": 1
+  },
   "ballpoint_pen": {
     "name": "圆珠笔",
-    "type": "misc"
+    "type": "misc",
+    "value": 1
   },
   "village_key": {
     "name": "生锈的钥匙",
-    "type": "key"
+    "type": "key",
+    "value": 0
   },
   "old_diary": {
     "name": "破旧日记",
-    "type": "quest"
+    "type": "quest",
+    "value": 0
   },
   "lighter": {
     "name": "打火机",
-    "type": "misc"
+    "type": "misc",
+    "value": 10
   },
   "healing_potion": {
     "name": "初级治疗药水",
-    "type": "consumable"
+    "type": "consumable",
+    "value": 30
   },
   "cellar_chest_key": {
     "name": "地窖宝箱钥匙",
-    "type": "key"
+    "type": "key",
+    "value": 0
   },
   "iron_dagger": {
     "name": "铁质匕首",
-    "type": "weapon"
+    "type": "weapon",
+    "value": 40,
+    "equip_slot": "weapon",
+    "equip_stats": {
+      "attack": 3,
+      "agility": 1
+    }
   },
   "healing_potion_minor": {
     "name": "次级治疗药水",
-    "type": "consumable"
+    "type": "consumable",
+    "value": 20
   },
   "mana_potion_minor": {
     "name": "次级法力药水",
-    "type": "consumable"
+    "type": "consumable",
+    "value": 35
+  },
+  "ale": {
+    "name": "麦酒",
+    "type": "consumable",
+    "value": 8
+  },
+  "bread": {
+    "name": "黑面包",
+    "type": "consumable",
+    "value": 5
+  },
+  "stew": {
+    "name": "炖菜",
+    "type": "consumable",
+    "value": 12
+  },
+  "bandage": {
+    "name": "包扎绷带",
+    "type": "consumable",
+    "value": 15
   }
 }

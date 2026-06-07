@@ -159,8 +159,9 @@
             "chest_opened": true,
             "cellar_explored": true
           },
-          "attack": 2,
-          "san": 5
+          "stats": {
+            "coins": 15
+          }
         }
       },
       {

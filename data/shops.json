@@ -1,0 +1,22 @@
+{
+  "village_tavern_shop": {
+    "name": "格蕾塔的酒馆",
+    "npc_name": "格蕾塔",
+    "greeting": "「想买点什么？我这儿有麦酒、面包，还有今天刚熬的炖菜。」",
+    "items": [
+      { "item_id": "ale", "price": 8, "stock": -1 },
+      { "item_id": "bread", "price": 5, "stock": -1 },
+      { "item_id": "stew", "price": 12, "stock": 3 }
+    ]
+  },
+  "village_alchemy_shop": {
+    "name": "莉莉安的炼金工坊",
+    "npc_name": "莉莉安",
+    "greeting": "「要买伤药还是魔药？我都按成本价给你——反正材料都是自己采的。」",
+    "items": [
+      { "item_id": "healing_potion", "price": 30, "stock": 3 },
+      { "item_id": "mana_potion_minor", "price": 35, "stock": 2 },
+      { "item_id": "bandage", "price": 15, "stock": 5 }
+    ]
+  }
+}

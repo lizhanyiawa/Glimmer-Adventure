@@ -86,7 +86,7 @@ class BattleManager:
             if san_drop != 0:
                 self.first_monster = True
                 self.state.stats["san"] = max(0, min(100, self.state.stats.get("san", 100) + san_drop))
-                self.state.flags["first_monster_seen"] = True
+                self.engine.set_flag("first_monster_seen", True)
 
         player_stats = self.state.stats
         self.player = Combatant(
@@ -194,12 +194,14 @@ class BattleManager:
 
         self._check_battle_end()
         self.advance_turn()
+        self._sync_to_state()
         return "\n".join(lines), dmg
 
     def player_defend(self) -> str:
         self._player_guarding = True
         self._guard_cooldown = True
         self.advance_turn()
+        self._sync_to_state()
         return self._pick_narrative("defend", "你稳住身形架起防御，<heal>做好了承受冲击的准备</heal>。")
 
     @property
@@ -219,6 +221,7 @@ class BattleManager:
         if success:
             self.fled = True
             self.battle_over = True
+            self._sync_to_state()
             return True, self.enemy_narrative.get("flee_success", "你成功逃跑了！")
         else:
             self.advance_turn()
@@ -275,6 +278,7 @@ class BattleManager:
 
         self._check_battle_end()
         self.advance_turn()
+        self._sync_to_state()
         return "\n".join(lines), dmg
 
     # ── 结算 ──
@@ -286,9 +290,20 @@ class BattleManager:
             self.battle_over = True
             self.player_won = False
 
+    def _sync_to_state(self):
+        """每回合后将战斗中的核心属性同步回 GameState。
+
+        防止战斗因异常退出/崩溃导致进度丢失。
+        性能开销可忽略（每回合写入一次 dict）。
+        """
+        self.state.stats["hp"] = self.player.hp
+        # agi 可能在战斗中通过 buff/debuff 变化
+        if self.player.agility != self.player._base_agility:
+            self.state.stats["agility"] = self.player.agility
+
     def finalize(self):
         """战斗结束后同步血量回 GameState"""
-        self.state.stats["hp"] = self.player.hp
+        self._sync_to_state()
 
     def apply_rewards(self):
         if not self.player_won:

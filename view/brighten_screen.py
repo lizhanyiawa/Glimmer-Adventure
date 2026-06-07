@@ -43,7 +43,7 @@ class BrightenScreen(Screen):
         self.app.pop_screen()
 
         engine = self.app.engine
-        if not engine.state.flags.get("intro_monologue_done", False):
+        if not engine.get_flag("intro_monologue_done", False):
             engine.state.dialogue_id = "intro_wake_1"
 
         self.app.push_screen(GamePlayScreen())

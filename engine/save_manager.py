@@ -55,13 +55,18 @@ class SaveManager:
         if isinstance(saved_stats, dict):
             for key in state.stats:
                 if key in saved_stats:
-                    try:
-                        state.stats[key] = type(state.stats[key])(saved_stats[key])
-                    except (ValueError, TypeError):
-                        pass
+                    val = saved_stats[key]
+                    if isinstance(val, (int, float)):
+                        try:
+                            state.stats[key] = type(state.stats[key])(val)
+                        except (ValueError, TypeError):
+                            pass
+                    # 非数值类型（如被篡改的存档）静默跳过，保留默认值
             for key in saved_stats:
                 if key not in state.stats:
-                    state.stats[key] = saved_stats[key]
+                    val = saved_stats[key]
+                    if isinstance(val, (int, float, str)):
+                        state.stats[key] = val
 
         saved_inv = data.get("inventory", [])
         if isinstance(saved_inv, list):
@@ -73,10 +78,17 @@ class SaveManager:
         if isinstance(saved_flags, dict):
             for key in state.flags:
                 if key in saved_flags:
-                    state.flags[key] = bool(saved_flags[key])
+                    # 只接受 bool 或 str（如 tracked_task_id）类型的 flag 值
+                    val = saved_flags[key]
+                    if isinstance(val, bool):
+                        state.flags[key] = val
+                    elif isinstance(val, str):
+                        state.flags[key] = val
             for key in saved_flags:
                 if key not in state.flags:
-                    state.flags[key] = bool(saved_flags[key])
+                    val = saved_flags[key]
+                    if isinstance(val, (bool, str)):
+                        state.flags[key] = val
 
         saved_diary = data.get("diary", {})
         if isinstance(saved_diary, dict):
@@ -85,7 +97,8 @@ class SaveManager:
             notes = saved_diary.get("notes", [])
             state.diary["notes"] = notes if isinstance(notes, list) else []
 
-        state.flags["diary_unread"] = False
+        # 加载存档后重置未读状态，确保旧存档的 sys_diary_unread 不会残留
+        state.flags["sys_diary_unread"] = False
 
     def save(self, state, slot: int) -> bool:
         if not self._valid_slot(slot):

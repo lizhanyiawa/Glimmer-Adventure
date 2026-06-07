@@ -295,8 +295,9 @@ class GamePlayScreen(Screen):
         self._update_ui_colors()
 
     def _refresh_tracked_task(self):
-        tracked_id = self.app.engine.state.flags.get("tracked_task_id", "")
-        tasks = self.app.engine.state.diary.get("tasks", [])
+        engine = self.app.engine
+        tracked_id = engine.get_flag("sys_tracked_task_id", "")
+        tasks = engine.state.diary.get("tasks", [])
         tracked_widget = self.query_one("#tracked_task", Static)
 
         if tracked_id:
@@ -307,8 +308,7 @@ class GamePlayScreen(Screen):
                     tracked_widget.update(f"追踪任务: {prefix}{t.get('title', '???')}")
                     tracked_widget.set_class(False, "tracked_empty")
                     return
-            # task not found, clear tracking
-            self.app.engine.state.flags["tracked_task_id"] = ""
+            engine.delete_flag("sys_tracked_task_id")
             tracked_widget.update("")
             tracked_widget.set_class(True, "tracked_empty")
         else:
@@ -350,11 +350,12 @@ class GamePlayScreen(Screen):
                 pass
 
     def _refresh_diary_button(self):
-        state = self.app.engine.state
+        engine = self.app.engine
+        state = engine.state
         inventory = state.inventory
         has_diary_item = any(item.get("id") in ["diary", "old_diary"] for item in inventory)
-        has_diary_flag = state.flags.get("has_diary", False)
-        has_unread = state.flags.get("diary_unread", False)
+        has_diary_flag = engine.get_flag("has_diary", False)
+        has_unread = engine.get_flag("sys_diary_unread", False)
 
         has_diary = has_diary_item or has_diary_flag
 

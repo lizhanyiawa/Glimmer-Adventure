@@ -206,10 +206,11 @@ class DiaryScreen(Screen):
                     yield Button("[ 关闭 ]", id="close_diary_btn")
 
     def on_mount(self):
+        engine = self.app.engine
         self.query_one("#delete_note_btn").display = False
         self.query_one("#tracked_task_btn").display = False
-        self._has_unread = self.app.engine.state.flags.get("diary_unread", False)
-        self.app.engine.state.flags["diary_unread"] = False
+        self._has_unread = engine.get_flag("sys_diary_unread", False)
+        engine.set_flag("sys_diary_unread", False)
         self._build_entry_list()
         if self._entries:
             self._select(0)
@@ -291,7 +292,7 @@ class DiaryScreen(Screen):
         if etype == "task":
             self.query_one("#delete_note_btn").display = False
             self.query_one("#tracked_task_btn").display = True
-            tracked_id = self.app.engine.state.flags.get("tracked_task_id", "")
+            tracked_id = self.app.engine.get_flag("sys_tracked_task_id", "")
             task_id = data.get("id", "")
             if tracked_id == task_id:
                 self.query_one("#tracked_task_btn").label = "[T] 取消追踪"
@@ -381,15 +382,16 @@ class DiaryScreen(Screen):
             self.notify("只能追踪任务", title="提示")
             return
 
+        engine = self.app.engine
         task_id = data.get("id", "")
-        current = self.app.engine.state.flags.get("tracked_task_id", "")
+        current = engine.get_flag("sys_tracked_task_id", "")
 
         if current == task_id:
-            self.app.engine.state.flags["tracked_task_id"] = ""
+            engine.set_flag("sys_tracked_task_id", "")
             self.query_one("#tracked_task_btn").label = "[T] 追踪任务"
             self.notify("已取消追踪")
         else:
-            self.app.engine.state.flags["tracked_task_id"] = task_id
+            engine.set_flag("sys_tracked_task_id", task_id)
             self.query_one("#tracked_task_btn").label = "[T] 取消追踪"
             self.notify(f"正在追踪: {data.get('title', '???')}")
 
@@ -413,7 +415,7 @@ class DiaryScreen(Screen):
             "created": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         }
         self.app.engine.state.diary["notes"].append(note)
-        self.app.engine.state.flags["diary_unread"] = True
+        self.app.engine.set_flag("sys_diary_unread", True)
         self._build_entry_list()
         if self._entries:
             self._select(len(self._entries) - 1)

@@ -186,7 +186,7 @@
           },
           "flags": {
             "has_diary": true,
-            "diary_unread": true
+            "sys_diary_unread": true
           },
           "notes": {
             "add": [

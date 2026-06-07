@@ -79,6 +79,15 @@ class BattleManager:
         self.enemy_data = e_data
         self.enemy_narrative = e_data.get("narrative", {})
 
+        # 首次见怪 SAN 扣除
+        self.first_monster = False
+        if not self.state.flags.get("first_monster_seen", False):
+            san_drop = e_data.get("san_drop", 0)
+            if san_drop != 0:
+                self.first_monster = True
+                self.state.stats["san"] = max(0, min(100, self.state.stats.get("san", 100) + san_drop))
+                self.state.flags["first_monster_seen"] = True
+
         player_stats = self.state.stats
         self.player = Combatant(
             name=self.state.stats.get("player_name", "你"),
@@ -198,7 +207,15 @@ class BattleManager:
         return not self._guard_cooldown
 
     def player_flee(self) -> Tuple[bool, str]:
-        success = random.random() < 0.5
+        # 动态逃跑率: 基础50% + 敏捷差每点5% + 敌人特性修正 + SAN低扣减
+        agi_diff = self.player.agility - self.enemy.agility
+        base_chance = 0.5 + agi_diff * 0.05
+        flee_mod = self.enemy_data.get("flee_mod", 0)
+        # SAN <= 30 时逃跑成功率下降
+        san_penalty = -0.1 if self.state.stats.get("san", 100) <= 30 else 0
+        chance = max(0.05, min(0.95, base_chance + flee_mod + san_penalty))
+
+        success = random.random() < chance
         if success:
             self.fled = True
             self.battle_over = True

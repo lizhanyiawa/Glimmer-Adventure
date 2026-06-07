@@ -266,7 +266,19 @@ class BattleScreen(Screen):
         self._disable_buttons()
         self._refresh_bars()
 
+        # 首次见怪 SAN 变动提示
+        san_extra = ""
+        if self._bm.first_monster:
+            san_text = self._bm.enemy_data.get("san_text", "")
+            drop = self._bm.enemy_data.get("san_drop", 0)
+            label = f"{'+' if drop > 0 else ''}{drop}"
+            if san_text:
+                san_extra = f"\n\n<dim>{san_text}（理智{label}）</dim>"
+            else:
+                san_extra = f"\n\n<dim>（第一次遭遇——理智值{label}）</dim>"
+
         encounter_text = self._bm.enemy_narrative.get("encounter", f"{self._bm.enemy.name}出现了！")
+        encounter_text += san_extra
         self._write_history(encounter_text)
 
         pre_text = self._bm.resolve_pre_battle()

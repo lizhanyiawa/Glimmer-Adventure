@@ -351,7 +351,10 @@ class GameEngine:
             self.state.dialogue_id = next_dialogue
         elif next_room:
             self.state.room_id = next_room
-            self.state.dialogue_id = ""
+            # enter_dialogue: 进入房间后自动触发的对话
+            room_def = self._rooms_db.get(next_room, {})
+            enter_dlg = room_def.get("enter_dialogue", "")
+            self.state.dialogue_id = enter_dlg
 
         return {
             "success": True,

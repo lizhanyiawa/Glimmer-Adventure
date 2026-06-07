@@ -137,6 +137,18 @@ class SaveManager:
                 return False
             if not isinstance(data.get("flags"), dict):
                 return False
+            # 类型+范围校验
+            for stat_key, val in data.get("stats", {}).items():
+                if not isinstance(val, (int, float)):
+                    return False
+                if stat_key == "hp" and not (0 <= val <= 9999):
+                    return False
+                if stat_key == "san" and not (0 <= val <= 200):
+                    return False
+                if stat_key == "corruption" and not (0 <= val <= 100):
+                    return False
+                if not (0 <= val <= 999):
+                    return False
             return True
         except Exception:
             return False

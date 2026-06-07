@@ -431,13 +431,16 @@ class FXManager:
             pass
 
     @staticmethod
-    async def play_border_brighten(widget, duration: float = 1.0):
-        """边框由灰暗渐变到亮蓝色的苏醒特效"""
+    async def play_border_brighten(widget, duration: float = 1.0, color: str = None):
+        """边框由灰暗渐变到亮色（默认蓝色苏醒，可自定义如红色死亡）"""
+        if color:
+            target = color
+        else:
+            target = "#45ddff"
         border_colors = [
             "#333333", "#3a3a3a", "#444444", "#4e4e4e",
             "#555555", "#5a6a7a", "#5a7a8a", "#5599aa",
-            "#45aacc", "#45bbdd", "#45ccee", "#45ddff",
-            "#45e8ff", "#45f3ff",
+            "#45aacc", "#45bbdd", target,
         ]
         step_duration = duration / len(border_colors)
         for color in border_colors:

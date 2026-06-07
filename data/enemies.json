@@ -15,7 +15,9 @@
       "damage_pct": 0.1
     },
     "drops": [],
-    "xp": 15
+    "xp": 15,
+    "flee_mod": -0.1,
+    "san_drop": -5
   },
   "spined_rat": {
     "name": "刺毛鼠",
@@ -26,9 +28,9 @@
     "pre_battle": {
       "type": "none"
     },
-    "drops": [
-      "cellar_chest_key"
-    ],
-    "xp": 5
+    "drops": ["cellar_chest_key"],
+    "xp": 5,
+    "flee_mod": 0.2,
+    "san_drop": -10
   }
 }

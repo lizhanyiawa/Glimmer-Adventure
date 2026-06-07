@@ -196,9 +196,7 @@
           }
         },
         "effects": {
-          "san": -10,
           "flags": {
-            "first_monster_seen": true,
             "rat_defeated": true
           }
         },
@@ -207,7 +205,6 @@
           "san": 0,
           "flags": {
             "rat_defeated": true,
-            "first_monster_seen": true,
             "tutorial_done": true
           },
           "notes": {

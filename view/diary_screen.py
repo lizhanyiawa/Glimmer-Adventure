@@ -22,7 +22,7 @@ class DiaryScreen(Screen):
     #diary_box {
         width: 72;
         height: auto;
-        max-height: 38;
+        max-height: 40;
         border: thick #e6b800;
         background: #161923;
         padding: 1 2;
@@ -199,17 +199,13 @@ class DiaryScreen(Screen):
                 yield Static("", id="entry_detail")
 
             with Vertical(id="diary_footer"):
-                yield Static("[N] 新建笔记  [D] 删除笔记  [T] 追踪  ·  点击关闭按钮或按 ESC 返回", classes="diary_title")
-                with Horizontal():
-                    yield Button("[N] 新建笔记", id="new_note_btn")
-                    yield Button("[T] 追踪任务", id="tracked_task_btn")
-                    yield Button("[D] 删除笔记", id="delete_note_btn")
+                yield Button("[N] 新建笔记", id="new_note_btn")
+                yield Button("[T] 追踪任务", id="tracked_task_btn")
+                yield Button("[D] 删除笔记", id="delete_note_btn")
                 yield Button("[ 关闭 ]", id="close_diary_btn")
 
     def on_mount(self):
         engine = self.app.engine
-        self.query_one("#delete_note_btn").display = False
-        self.query_one("#tracked_task_btn").display = False
         self._has_unread = engine.get_flag("sys_diary_unread", False)
         engine.set_flag("sys_diary_unread", False)
         self._build_entry_list()
@@ -291,8 +287,8 @@ class DiaryScreen(Screen):
     def _show_detail(self, entry):
         etype, _, data = entry
         if etype == "task":
-            self.query_one("#delete_note_btn").display = False
-            self.query_one("#tracked_task_btn").display = True
+            self.query_one("#delete_note_btn").disabled = True
+            self.query_one("#tracked_task_btn").disabled = False
             tracked_id = self.app.engine.get_flag("sys_tracked_task_id", "")
             task_id = data.get("id", "")
             if tracked_id == task_id:
@@ -308,8 +304,8 @@ class DiaryScreen(Screen):
                 f"[#c5c6c7]{data.get('content', '(无描述)')}[/]",
             ]
         else:
-            self.query_one("#delete_note_btn").display = True
-            self.query_one("#tracked_task_btn").display = False
+            self.query_one("#delete_note_btn").disabled = False
+            self.query_one("#tracked_task_btn").disabled = True
             created = data.get("created", "")
             lines = [
                 f"[b #ffaa00]{data.get('title', '???')}[/]",
@@ -370,8 +366,8 @@ class DiaryScreen(Screen):
             self._select(self._selected)
         else:
             self.query_one("#entry_detail", Static).update("")
-            self.query_one("#delete_note_btn").display = False
-            self.query_one("#tracked_task_btn").display = False
+            self.query_one("#delete_note_btn").disabled = True
+            self.query_one("#tracked_task_btn").disabled = True
         self.notify("笔记已删除")
 
     def action_track(self):

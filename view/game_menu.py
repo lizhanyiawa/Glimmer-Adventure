@@ -242,6 +242,11 @@ class GamePlayScreen(Screen):
         color: #0b0c10;
         text-style: bold;
     }
+    #btn_shop:hover {
+        background: #ffaa00;
+        color: #0b0c10;
+        text-style: bold;
+    }
     """
 
     def compose(self):

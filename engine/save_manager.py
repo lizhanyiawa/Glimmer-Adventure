@@ -158,10 +158,10 @@ class SaveManager:
                 return False
             if not isinstance(data.get("flags"), dict):
                 return False
-            # 类型+范围校验
+            # 类型+范围校验（跳过字符串型 stats，如 player_name）
             for stat_key, val in data.get("stats", {}).items():
                 if not isinstance(val, (int, float)):
-                    return False
+                    continue
                 if stat_key == "hp" and not (0 <= val <= 9999):
                     return False
                 if stat_key == "san" and not (0 <= val <= 200):

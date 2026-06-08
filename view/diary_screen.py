@@ -21,7 +21,8 @@ class DiaryScreen(Screen):
     }
     #diary_box {
         width: 72;
-        height: 36;
+        height: auto;
+        max-height: 38;
         border: thick #e6b800;
         background: #161923;
         padding: 1 2;
@@ -31,10 +32,10 @@ class DiaryScreen(Screen):
         text-style: bold;
         color: #e6b800;
         margin-bottom: 1;
-        height: 1;
+        height: auto;
     }
     #diary_main {
-        height: 26;
+        height: 24;
     }
     #entry_list {
         width: 30;
@@ -103,7 +104,7 @@ class DiaryScreen(Screen):
         overflow-y: auto;
     }
     #diary_footer {
-        height: 5;
+        height: auto;
         margin-top: 1;
     }
     #diary_footer Static {

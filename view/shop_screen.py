@@ -26,14 +26,15 @@ class ShopScreen(Screen):
         background: rgba(0, 0, 0, 0.75);
     }
     #shop_box {
-        width: 76;
-        height: 36;
+        width: 84;
+        height: auto;
+        max-height: 38;
         border: thick #ffaa00;
         background: #161923;
         padding: 1 2;
     }
     #shop_header {
-        height: 3;
+        height: auto;
         margin-bottom: 1;
     }
     #shop_title {
@@ -49,17 +50,17 @@ class ShopScreen(Screen):
         text-style: bold;
     }
     #shop_main {
-        height: 26;
+        height: 24;
     }
     #shop_list {
-        width: 32;
+        width: 38;
         height: 100%;
         border: solid #333333;
         background: #0f1016;
         overflow-y: auto;
     }
     #shop_detail {
-        width: 40;
+        width: 44;
         height: 100%;
         border: solid #333333;
         background: #0f1016;
@@ -100,13 +101,13 @@ class ShopScreen(Screen):
         margin-bottom: 1;
     }
     #shop_bottom {
-        height: 3;
+        height: auto;
         margin-top: 1;
     }
     #shop_greeting {
         color: #888888;
         text-style: italic;
-        width: 75%;
+        width: 50%;
     }
     #btn_buy {
         width: 25%;
@@ -125,6 +126,17 @@ class ShopScreen(Screen):
         color: #444444;
         border: solid #444444;
     }
+    #btn_close_shop {
+        width: 25%;
+        border: solid #ff5555;
+        background: #11141e;
+        color: #ff5555;
+        text-style: bold;
+    }
+    #btn_close_shop:hover {
+        background: #ff5555;
+        color: white;
+    }
     """
 
     def __init__(self, shop_id: str):
@@ -132,6 +144,7 @@ class ShopScreen(Screen):
         self._shop_id = shop_id
         self._items = []
         self._selected = 0
+        self._rebuild_gen = 0
 
     def compose(self):
         with Vertical(id="shop_box"):
@@ -146,6 +159,7 @@ class ShopScreen(Screen):
             with Horizontal(id="shop_bottom"):
                 yield Static("", id="shop_greeting")
                 yield Button("[ Enter ] 购买", id="btn_buy")
+                yield Button("[ Esc ] 关闭", id="btn_close_shop")
 
     def on_mount(self):
         engine = self.app.engine
@@ -168,6 +182,8 @@ class ShopScreen(Screen):
             self._select(0)
 
     def _rebuild_list(self):
+        self._rebuild_gen += 1
+        prefix = f"s{self._rebuild_gen}"
         container = self.query_one("#shop_list", ScrollableContainer)
         container.remove_children()
 
@@ -178,14 +194,15 @@ class ShopScreen(Screen):
                 stock_str = f"  [库存:{stock}]"
             btn = Button(
                 f"{item['name']}  {item['price']}铜{stock_str}",
-                id=f"shop_item_{i}",
+                id=f"{prefix}_shop_item_{i}",
                 classes="shop_item_btn",
             )
             container.mount(btn)
 
     def _select(self, index: int):
         self._selected = max(0, min(index, len(self._items) - 1))
-        for i, child in enumerate(self.query("#shop_list").nodes):
+        container = self.query_one("#shop_list", ScrollableContainer)
+        for i, child in enumerate(container.children):
             if hasattr(child, "set_class"):
                 child.set_class(i == self._selected, "shop_item_selected")
         self._show_detail()
@@ -225,12 +242,6 @@ class ShopScreen(Screen):
         item = self._items[self._selected]
         self._do_buy(item)
 
-    @on(Button.Pressed, "#btn_buy")
-    def on_buy_click(self):
-        if not self._items:
-            return
-        self._do_buy(self._items[self._selected])
-
     def _do_buy(self, item):
         engine = self.app.engine
         result = engine.buy_item(self._shop_id, item["item_id"], 1)
@@ -257,6 +268,16 @@ class ShopScreen(Screen):
 
     def action_close(self):
         self.app.pop_screen()
+
+    @on(Button.Pressed, "#btn_close_shop")
+    def on_close_click(self):
+        self.action_close()
+
+    @on(Button.Pressed, "#btn_buy")
+    def on_buy_click(self):
+        if not self._items:
+            return
+        self._do_buy(self._items[self._selected])
 
     @on(Button.Pressed, ".shop_item_btn")
     def on_item_click(self, event: Button.Pressed):

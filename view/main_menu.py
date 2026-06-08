@@ -6,7 +6,6 @@ from view.naming_screen import NamingScreen
 from view.global_settings import GlobalSettingsScreen
 from view.brighten_screen import BrightenScreen
 from view.load_game_screen import LoadGameScreen
-from engine import GameState
 
 class MenuButton(Button):
     pass
@@ -74,7 +73,7 @@ class MainMenuScreen(Screen):
 
     # 键盘动作
     def _start_new_game(self):
-        self.app.engine.state = GameState()
+        self.app.engine.reset_game()
         self.app.push_screen(NamingScreen())
 
     def _open_load_game(self):

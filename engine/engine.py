@@ -78,6 +78,7 @@ class GameState:
             "max_hp": 100,
             "san": 100,
             "corruption": 0,
+            "coins": 0,
         }
 
         self.inventory: List[Dict[str, Any]] = []

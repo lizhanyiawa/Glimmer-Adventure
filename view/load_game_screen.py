@@ -51,33 +51,6 @@ class LoadGameScreen(Screen):
         background: #ffaa00;
         text-style: bold;
     }
-    LoadConfirmScreen {
-        align: center middle;
-        background: rgba(0,0,0,0.0);
-    }
-    #confirm_box {
-        width: 48;
-        height: auto;
-        border: heavy #00ff66;
-        background: #101a10;
-        padding: 1 4;
-    }
-    .confirm_title {
-        text-align: center;
-        text-style: bold;
-        color: #00ff66;
-        margin-bottom: 1;
-    }
-    .confirm_text {
-        text-align: center;
-        margin-bottom: 2;
-        color: #e5e5e5;
-    }
-    #confirm_btn_box {
-        content-align: center middle;
-        height: auto;
-        width: 100%;
-    }
     """
 
     def compose(self):
@@ -140,6 +113,48 @@ class LoadConfirmScreen(Screen):
         ("escape", "cancel", "取消"),
     ]
 
+    CSS = """
+    LoadConfirmScreen {
+        align: center middle;
+        background: rgba(0, 0, 0, 0.0);
+    }
+    #confirm_box {
+        width: 48;
+        height: auto;
+        border: heavy #00ff66;
+        background: #101a10;
+        padding: 1 4;
+    }
+    .confirm_title {
+        text-align: center;
+        text-style: bold;
+        color: #00ff66;
+        margin-bottom: 1;
+    }
+    .confirm_text {
+        text-align: center;
+        margin-bottom: 2;
+        color: #e5e5e5;
+    }
+    #confirm_btn_box {
+        content-align: center middle;
+        height: auto;
+        width: 100%;
+    }
+    .confirm_slot_btn {
+        width: 100%;
+        margin: 1 0;
+        background: #23283b;
+        color: white;
+        border: none;
+    }
+    .confirm_slot_btn:hover {
+        background: #00ff66;
+        color: #0b0c10;
+        text-style: bold;
+    }
+    """
+
     def __init__(self, slot: int, on_confirm):
         super().__init__()
         self._slot = slot
@@ -151,8 +166,8 @@ class LoadConfirmScreen(Screen):
             yield Static(f"确定要读取存档 {self._slot} 吗？\n当前未保存的进度将会丢失。", classes="confirm_text")
             yield Static("按 Y 确认，N 或 ESC 取消", classes="confirm_text")
             with Horizontal(id="confirm_btn_box"):
-                yield Button("[Y] 确认", id="btn_yes", classes="save_slot_btn")
-                yield Button("[N] 取消", id="btn_no", classes="save_slot_btn")
+                yield Button("[Y] 确认", id="btn_yes", classes="confirm_slot_btn")
+                yield Button("[N] 取消", id="btn_no", classes="confirm_slot_btn")
 
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "btn_yes":

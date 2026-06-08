@@ -5,6 +5,13 @@ from textual.widgets import Static, Button
 from textual.containers import Vertical, Horizontal
 from textual import on
 
+STATS_NAMES = {
+    "attack": "攻击",
+    "defense": "防御",
+    "intelligence": "智力",
+    "agility": "敏捷",
+}
+
 
 class EquipmentScreen(Screen):
     BINDINGS = [
@@ -77,7 +84,7 @@ class EquipmentScreen(Screen):
 
         # 找出所有可装备物品
         self._equippable = [item for item in inv
-                            if engine._items_db.get(item["id"], {}).get("equip_slot")]
+                            if engine.get_item_def(item["id"]).get("equip_slot")]
 
         with Vertical(id="equip_box"):
             yield Static("── 装备 ──", classes="equip_title")
@@ -86,7 +93,7 @@ class EquipmentScreen(Screen):
                 entry = equipment.get(slot)
                 if entry:
                     stat_str = ", ".join(
-                        f"+{v}{k}" for k, v in entry.get("stats", {}).items()
+                        f"+{v} {STATS_NAMES.get(k, k)}" for k, v in entry.get("stats", {}).items()
                     )
                     line = f"[slot_name]{slot.upper()}[/slot_name]: {entry['name']}  [slot_stats]{stat_str}[/slot_stats]"
                 else:
@@ -96,7 +103,7 @@ class EquipmentScreen(Screen):
             # 汇总
             summary = engine.get_equipped_stats_summary()
             if summary:
-                summary_str = ", ".join(f"+{v}{k}" for k, v in summary.items())
+                summary_str = ", ".join(f"+{v} {STATS_NAMES.get(k, k)}" for k, v in summary.items())
                 yield Static(f"[equip_summary_label]装备加成:[/equip_summary_label] {summary_str}", classes="equip_summary")
             else:
                 yield Static("[equip_summary_label]装备加成:[/equip_summary_label] 无", classes="equip_summary")

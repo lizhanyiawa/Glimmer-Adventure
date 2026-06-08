@@ -17,7 +17,8 @@ class InventoryScreen(Screen):
     }
     #inv_box {
         width: 72;
-        height: 36;
+        height: auto;
+        max-height: 36;
         border: thick #66fcf1;
         background: #161923;
         padding: 1 2;
@@ -27,10 +28,10 @@ class InventoryScreen(Screen):
         text-style: bold;
         color: #66fcf1;
         margin-bottom: 1;
-        height: 1;
+        height: auto;
     }
     #inv_main {
-        height: 26;
+        height: 24;
     }
     #item_list {
         width: 30;
@@ -109,7 +110,7 @@ class InventoryScreen(Screen):
         margin-top: 1;
     }
     #inv_footer {
-        height: 5;
+        height: auto;
         margin-top: 1;
     }
     #close_inv_btn {

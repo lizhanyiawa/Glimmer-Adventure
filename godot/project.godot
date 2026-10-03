@@ -17,8 +17,8 @@ config/features=PackedStringArray("4.7")
 
 [autoload]
 
-; 全局游戏引擎（scripts/core/game_engine.gd），承载状态、数据与规则
 GameEngine="*res://scripts/core/game_engine.gd"
+FontManager="*res://scripts/ui/font_manager.gd"
 
 [display]
 
@@ -28,6 +28,10 @@ window/size/viewport_height=720
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/godot-mcp/plugin.cfg")
+
+[gui]
+
+theme/custom="res://assets/theme/game_theme.tres"
 
 [rendering]
 

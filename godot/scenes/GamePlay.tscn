@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=11 format=3]
 
 ; 主玩法画面（渲染层第一版草案）
 ; 布局对应 view/game_menu.py 的 GamePlayScreen：
@@ -6,13 +6,6 @@
 ; 场景里填的是占位数据，运行时由 scripts/ui/game_play.gd 全部覆盖为引擎里的真实数据。
 
 [ext_resource type="Script" path="res://scripts/ui/game_play.gd" id="1_gameplay"]
-
-[sub_resource type="SystemFont" id="SystemFont_cjk"]
-font_names = PackedStringArray("Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "Noto Sans CJK SC", "sans-serif")
-
-[sub_resource type="Theme" id="Theme_main"]
-default_font = SubResource("SystemFont_cjk")
-default_font_size = 16
 
 [sub_resource type="StyleBoxFlat" id="SB_status"]
 content_margin_left = 10.0
@@ -142,7 +135,6 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme = SubResource("Theme_main")
 script = ExtResource("1_gameplay")
 
 [node name="Bg" type="ColorRect" parent="."]
@@ -219,7 +211,7 @@ size_flags_stretch_ratio = 40.0
 [node name="LocationLabel" type="Label" parent="Root/Layout/StatusBar/StatusRow/LocationCenter"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.666667, 0, 1)
-theme_override_font_sizes/font_size = 18
+theme_type_variation = &"Heading"
 text = "位置：风息村 · 村口"
 
 [node name="StatsRight" type="VBoxContainer" parent="Root/Layout/StatusBar/StatusRow"]
@@ -262,7 +254,6 @@ theme_override_styles/panel = SubResource("SB_story")
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_colors/default_color = Color(0.772549, 0.776471, 0.780392, 1)
-theme_override_font_sizes/normal_font_size = 17
 bbcode_enabled = true
 text = "（此处为渲染层占位文本，用于检查中文排版与换行）
 
@@ -289,7 +280,6 @@ theme_override_styles/panel = SubResource("SB_history")
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_colors/default_color = Color(0.6, 0.6, 0.65, 1)
-theme_override_font_sizes/normal_font_size = 14
 bbcode_enabled = true
 text = "› 你睁开了眼。
 › 你发现自己躺在陌生的地上。

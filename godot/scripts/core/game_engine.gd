@@ -39,6 +39,8 @@ const DEFAULT_SETTINGS: Dictionary = {
 	"confirm_exit": true,
 	"confirm_save": true,
 	"history_lines": 200,
+	"font_style": "system",
+	"ui_font_level": 1,
 }
 
 const CONFIG_PATH: String = "user://engine_config.json"

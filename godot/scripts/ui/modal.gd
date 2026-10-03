@@ -42,6 +42,9 @@ const DEFAULT_WIDTH := 640.0
 @onready var _footer: VBoxContainer = $Center/Frame/Margin/VBox/Footer
 
 var accent: Color = ACCENT_CYAN
+## 上层又叠了一个弹窗（如确认框）时置 true，屏蔽本层的 ESC，
+## 免得一次按键把叠在一起的两层一起关掉。
+var input_blocked: bool = false
 var _closed: bool = false
 
 
@@ -50,6 +53,8 @@ func _ready() -> void:
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
+	if input_blocked:
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
 			accept_event()
@@ -95,6 +100,7 @@ func set_body_height(height: float) -> void:
 
 func clear_body() -> void:
 	for child in _body.get_children():
+		_body.remove_child(child)
 		child.queue_free()
 
 
@@ -114,7 +120,6 @@ func add_rich_text(bbcode: String, color: Color = BODY_TEXT) -> RichTextLabel:
 	rich.fit_content = true
 	rich.scroll_active = false
 	rich.add_theme_color_override("default_color", color)
-	rich.add_theme_font_size_override("normal_font_size", 16)
 	rich.text = bbcode
 	_body.add_child(rich)
 	return rich
@@ -170,10 +175,16 @@ func add_node(node: Control) -> void:
 	_body.add_child(node)
 
 
+## 给外部自建的按钮套上弹窗按钮的配色（物品栏列表、装备卸下按钮等）
+func style_button(button: Button, button_accent: Color) -> void:
+	_style_button(button, button_accent)
+
+
 ## ────────────────────────── 底部按钮 ──────────────────────────
 
 func clear_actions() -> void:
 	for child in _footer.get_children():
+		_footer.remove_child(child)
 		child.queue_free()
 
 

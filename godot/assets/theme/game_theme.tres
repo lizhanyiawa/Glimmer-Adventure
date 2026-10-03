@@ -1,0 +1,19 @@
+[gd_resource type="Theme" load_steps=2 format=3]
+
+; ── 全局主题 ──
+; 由 project.godot 的 gui/theme/custom 挂载，所有界面共用这一个实例。
+; FontManager（scripts/ui/font_manager.gd）在运行时改它的 default_font
+; 和字号，就能一次性切换全部界面的字体与大小。
+;
+; 字号约定：像素字体只有在「设计字号的整数倍」下才清晰，这两款字体都按
+; 12px 设计，所以所有字号都取 12 的倍数（正文 12/24，标题 24/36）。
+; 具体数值由 FontManager 运行时写入，这里只是初始值。
+
+[sub_resource type="SystemFont" id="SystemFont_cjk"]
+font_names = PackedStringArray("Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "Noto Sans CJK SC", "sans-serif")
+
+[resource]
+default_font = SubResource("SystemFont_cjk")
+default_font_size = 12
+Heading/base_type = &"Label"
+Heading/font_sizes/font_size = 24

@@ -37,6 +37,7 @@ const STATS_NAMES: Dictionary = {
 @onready var _btn_inventory: Button = $Root/Layout/BottomConsole/SystemPanel/LeftButtons/BtnInventory
 @onready var _btn_save: Button = $Root/Layout/BottomConsole/SystemPanel/LeftButtons/BtnSave
 @onready var _btn_settings: Button = $Root/Layout/BottomConsole/SystemPanel/LeftButtons/BtnSettings
+@onready var _btn_diary: Button = $Root/Layout/BottomConsole/SystemPanel/LeftButtons/BtnDiary
 @onready var _btn_shop: Button = $Root/Layout/BottomConsole/SystemPanel/RightButtons/BtnShop
 
 ## 当前画面上的选项（已按条件过滤、去掉了 excluded 项）
@@ -58,11 +59,30 @@ var _inv_selected: int = 0
 ## 装备界面的提示行（装备失败时显示原因）
 var _equip_status: Label = null
 
-## 设置界面可选项（与原 Python 版 global_settings.py 一致）
-const SPEED_ORDER: Array = ["instant", "fast", "medium", "slow"]
-const SPEED_LABELS: Dictionary = {"instant": "即时", "fast": "快", "medium": "中", "slow": "慢"}
-const CORRUPTION_RATES: Array = [0.0, 0.5, 1.0, 1.5, 2.0]
-const HISTORY_OPTIONS: Array = [50, 100, 200, 500]
+## 商店界面状态（弹窗关闭时清空）
+var _shop_modal: GameModal = null
+var _shop_list_box: VBoxContainer = null
+var _shop_detail: RichTextLabel = null
+var _shop_buy_btn: Button = null
+var _shop_coins_label: Label = null
+var _shop_items: Array = []
+var _shop_selected: int = 0
+var _shop_id: String = ""
+
+## 日记界面状态
+var _diary_modal: GameModal = null
+var _diary_list_box: VBoxContainer = null
+var _diary_detail: RichTextLabel = null
+var _diary_entries: Array = []
+var _diary_selected: int = 0
+var _diary_track_btn: Button = null
+var _diary_delete_btn: Button = null
+## 未读时日记按钮的闪烁动画
+var _diary_flash_tween: Tween = null
+
+## 商店 / 日记界面的强调色（沿用弹窗那套配色）
+const ACCENT_SHOP := Color(1, 0.666667, 0)            # #ffaa00 金（商店）
+const ACCENT_DIARY := Color(0.901961, 0.721569, 0)    # #e6b800 黄（日记）
 
 
 func _ready() -> void:
@@ -75,8 +95,8 @@ func _ready() -> void:
 	_btn_inventory.pressed.connect(_open_inventory)
 	_btn_save.pressed.connect(_open_save)
 	_btn_settings.pressed.connect(_open_settings)
-	# 商店界面尚未移植，先禁用
-	_btn_shop.disabled = true
+	_btn_diary.pressed.connect(_open_diary)
+	_btn_shop.pressed.connect(_open_room_shop)
 
 	GameEngine.stats_changed.connect(_refresh_status_bar)
 	GameEngine.game_loaded.connect(load_current_room)
@@ -90,7 +110,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
 
-	# 系统界面快捷键（与原 Python 版 BINDINGS 一致；日记 D 未移植）
+	# 系统界面快捷键（与原 Python 版 BINDINGS 一致）
 	match event.keycode:
 		KEY_P:
 			accept_event()
@@ -99,6 +119,14 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_I:
 			accept_event()
 			_open_inventory()
+			return
+		KEY_D:
+			accept_event()
+			_open_diary()
+			return
+		KEY_T:
+			accept_event()
+			_open_room_shop()
 			return
 		KEY_S:
 			accept_event()
@@ -126,8 +154,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
 ## ────────────────────────── 场景渲染 ──────────────────────────
 
 func load_current_room() -> void:
+	if _check_game_over():
+		return
 	_refresh_status_bar()
 	_refresh_tracked_task()
+	_refresh_diary_button()
 
 	var room_id: String = GameEngine.state.room_id
 	var dialogue_id: String = GameEngine.state.dialogue_id
@@ -281,13 +312,25 @@ func _select_option(index: int) -> void:
 	_append_history("\n[color=#ffffff][b]【你】[/b][/color][color=#66fcf1]「%s」[/color]" % option.get("text", ""))
 	_append_stat_changes(result.get("effects_applied", {}))
 
-	# 战斗与商店还没移植，遇到就先停在原地，只提示不跳转
+	# 商店交易：打开交易界面，不刷新房间（与原版一致，交易完仍停在原画面）
+	var shop_id := str(option.get("shop", ""))
+	if not shop_id.is_empty():
+		_open_shop(shop_id)
+		return
+
+	# 战斗系统尚未移植，遇到就先提示并停在原地
 	if option.has("battle"):
 		_append_history("[color=#ffaa00]（战斗系统尚未移植，本次遭遇被跳过）[/color]")
-	if option.has("shop"):
-		_append_history("[color=#ffaa00]（商店界面尚未移植，本次交易被跳过）[/color]")
 
 	load_current_room()
+
+
+## 生命归零就切到结局画面。返回 true 表示已经切换、调用方不要再刷新画面。
+func _check_game_over() -> bool:
+	if int(GameEngine.state.stats.get("hp", 1)) > 0:
+		return false
+	get_tree().change_scene_to_file("res://scenes/GameOver.tscn")
+	return true
 
 
 func _append_stat_changes(effects: Dictionary) -> void:
@@ -344,6 +387,17 @@ func _on_modal_closed(modal: GameModal) -> void:
 		_inv_list_box = null
 		_inv_detail = null
 		_inv_discard_btn = null
+	if modal == _shop_modal:
+		_shop_modal = null
+		_shop_list_box = null
+		_shop_detail = null
+		_shop_buy_btn = null
+	if modal == _diary_modal:
+		_diary_modal = null
+		_diary_list_box = null
+		_diary_detail = null
+		_diary_track_btn = null
+		_diary_delete_btn = null
 
 
 func _close_all_modals() -> void:
@@ -700,6 +754,8 @@ func _open_settings() -> void:
 	var modal := _make_modal("设置", GameModal.ACCENT_GOLD, 660.0, 420.0)
 	modal.action_pressed.connect(func(id: String) -> void:
 		match id:
+			"menu":
+				_on_settings_menu()
 			"load":
 				_open_load()
 			"exit":
@@ -709,7 +765,8 @@ func _open_settings() -> void:
 				modal.close()
 			_:
 				if id.begins_with("toggle:"):
-					_toggle_setting(id.substr(7), modal)
+					SettingsPanel.toggle(id.substr(7))
+					_fill_settings(modal)
 	)
 	_fill_settings(modal)
 	# 按 ESC 直接关掉时也要落盘（对应原版 action_close 里的 save_settings）
@@ -720,54 +777,24 @@ func _open_settings() -> void:
 func _fill_settings(modal: GameModal) -> void:
 	modal.configure({"title": "设置", "accent": GameModal.ACCENT_GOLD,
 		"width": 660.0, "body_height": 420.0})
-	var s: Dictionary = GameEngine.settings
-	modal.add_toggle_row("字体风格", "toggle:font_style", FontManager.style_label(FontManager.current_style()))
-	modal.add_toggle_row("界面字号", "toggle:ui_font_level", FontManager.level_label(FontManager.current_level()))
-	modal.add_toggle_row("文字速度", "toggle:text_speed",
-		str(SPEED_LABELS.get(s.get("text_speed", "medium"), "中")))
-	modal.add_toggle_row("调试模式", "toggle:debug_mode", "开" if s.get("debug_mode", false) else "关")
-	modal.add_toggle_row("侵蚀倍率", "toggle:corruption_rate", "%sx" % str(s.get("corruption_rate", 1.0)))
-	modal.add_toggle_row("跳过开场动画", "toggle:skip_intro", "开" if s.get("skip_intro", false) else "关")
-	modal.add_toggle_row("返回主菜单确认", "toggle:confirm_return", "开" if s.get("confirm_return", true) else "关")
-	modal.add_toggle_row("退出游戏确认", "toggle:confirm_exit", "开" if s.get("confirm_exit", true) else "关")
-	modal.add_toggle_row("覆盖存档提醒", "toggle:confirm_save", "开" if s.get("confirm_save", true) else "关")
-	modal.add_toggle_row("历史记录上限(行)", "toggle:history_lines", str(s.get("history_lines", 200)))
+	SettingsPanel.fill(modal)
+	modal.add_action("menu", "返回主菜单", GameModal.ACCENT_CYAN)
 	modal.add_action("load", "读取存档", GameModal.ACCENT_GREEN)
 	modal.add_action("exit", "退出游戏", GameModal.ACCENT_PINK)
 	modal.add_action("save_close", "保存并关闭", GameModal.ACCENT_GOLD)
 
 
-func _toggle_setting(key: String, modal: GameModal) -> void:
-	var s: Dictionary = GameEngine.settings
-	match key:
-		"font_style":
-			# 立即生效并记进设置，ESC 关闭时统一落盘
-			s["font_style"] = FontManager.cycle_style()
-		"ui_font_level":
-			s["ui_font_level"] = FontManager.cycle_level()
-		"text_speed":
-			var cur_speed: String = str(s.get("text_speed", "medium"))
-			var speed_idx: int = SPEED_ORDER.find(cur_speed)
-			s["text_speed"] = SPEED_ORDER[(speed_idx + 1) % SPEED_ORDER.size()] if speed_idx != -1 else "medium"
-		"debug_mode":
-			s["debug_mode"] = not s.get("debug_mode", false)
-		"corruption_rate":
-			var cur_rate: float = float(s.get("corruption_rate", 1.0))
-			var rate_idx: int = CORRUPTION_RATES.find(cur_rate)
-			s["corruption_rate"] = CORRUPTION_RATES[(rate_idx + 1) % CORRUPTION_RATES.size()] if rate_idx != -1 else 1.0
-		"skip_intro":
-			s["skip_intro"] = not s.get("skip_intro", false)
-		"confirm_return":
-			s["confirm_return"] = not s.get("confirm_return", true)
-		"confirm_exit":
-			s["confirm_exit"] = not s.get("confirm_exit", true)
-		"confirm_save":
-			s["confirm_save"] = not s.get("confirm_save", true)
-		"history_lines":
-			var cur_lines: int = int(s.get("history_lines", 200))
-			var line_idx: int = HISTORY_OPTIONS.find(cur_lines)
-			s["history_lines"] = HISTORY_OPTIONS[(line_idx + 1) % HISTORY_OPTIONS.size()] if line_idx != -1 else 200
-	_fill_settings(modal)
+func _on_settings_menu() -> void:
+	GameEngine.save_settings()
+	if GameEngine.settings.get("confirm_return", true):
+		_open_confirm("返回主菜单", "确定要返回主菜单吗？\n未保存的进度将会丢失。",
+			func() -> void: _goto_main_menu(), GameModal.ACCENT_CYAN)
+	else:
+		_goto_main_menu()
+
+
+func _goto_main_menu() -> void:
+	get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
 
 
 func _on_settings_exit() -> void:
@@ -777,3 +804,396 @@ func _on_settings_exit() -> void:
 			func() -> void: get_tree().quit(), GameModal.ACCENT_PINK)
 	else:
 		get_tree().quit()
+
+
+## ────────────────────────── 商店 ──────────────────────────
+
+## 点底部 [T] 交易：开当前房间挂着的商店
+func _open_room_shop() -> void:
+	var room: Dictionary = GameEngine.get_room(GameEngine.state.room_id)
+	var shop_id := str(room.get("shop", "")) if not room.is_empty() else ""
+	if shop_id.is_empty():
+		_append_history("[color=#ffaa00]这里没有可以交易的对象。[/color]")
+		return
+	_open_shop(shop_id)
+
+
+func _open_shop(shop_id: String) -> void:
+	var shop: Dictionary = GameEngine.get_shop(shop_id)
+	if shop.is_empty():
+		_append_history("[color=#ff5555]（商店数据不存在）[/color]")
+		return
+
+	_shop_id = shop_id
+	_shop_selected = 0
+	var modal := _make_modal(str(shop.get("name", "商店")), ACCENT_SHOP, 820.0, 330.0)
+	_shop_modal = modal
+
+	var main := HBoxContainer.new()
+	main.add_theme_constant_override("separation", 12)
+	main.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	# 左：商品列表
+	var list_scroll := ScrollContainer.new()
+	list_scroll.custom_minimum_size = Vector2(300, 290)
+	list_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	list_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_shop_list_box = VBoxContainer.new()
+	_shop_list_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list_scroll.add_child(_shop_list_box)
+	main.add_child(list_scroll)
+
+	# 右：商品详情
+	_shop_detail = RichTextLabel.new()
+	_shop_detail.bbcode_enabled = true
+	_shop_detail.scroll_active = false
+	_shop_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_shop_detail.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_shop_detail.add_theme_color_override("default_color", GameModal.BODY_TEXT)
+	main.add_child(_shop_detail)
+
+	modal.add_node(main)
+
+	var greeting := str(shop.get("greeting", ""))
+	if not greeting.is_empty():
+		modal.add_text(greeting, GameModal.MUTED)
+	_shop_coins_label = modal.add_text("", GameModal.ACCENT_GOLD)
+
+	_shop_buy_btn = modal.add_action("buy", "[Enter] 购买", ACCENT_SHOP)
+	modal.add_action("close", "[ESC] 关闭")
+	modal.action_pressed.connect(func(id: String) -> void:
+		if id == "buy":
+			_buy_selected()
+		else:
+			modal.close()
+	)
+
+	_refresh_shop()
+	_push_modal(modal)
+
+
+## 重新拉一遍商店数据（买完库存会变），重建列表与详情
+func _refresh_shop() -> void:
+	_shop_items = GameEngine.get_shop(_shop_id).get("items", [])
+	_shop_coins_label.text = "铜币: %d" % int(GameEngine.state.stats.get("coins", 0))
+
+	for child in _shop_list_box.get_children():
+		_shop_list_box.remove_child(child)
+		child.queue_free()
+
+	if _shop_items.is_empty():
+		var empty := Label.new()
+		empty.text = "（商品已售罄）"
+		empty.add_theme_color_override("font_color", GameModal.MUTED)
+		_shop_list_box.add_child(empty)
+		_shop_detail.text = ""
+		_shop_buy_btn.disabled = true
+		return
+
+	for i in range(_shop_items.size()):
+		var item: Dictionary = _shop_items[i]
+		var stock := int(item.get("stock", -1))
+		var label := "%s  %d铜" % [item.get("name", "???"), int(item.get("price", 0))]
+		if stock >= 0:
+			label += "  [库存:%d]" % stock
+		var btn := Button.new()
+		btn.text = label
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.custom_minimum_size = Vector2(0, 30)
+		_shop_modal.style_button(btn, ACCENT_SHOP)
+		btn.pressed.connect(_select_shop_item.bind(i))
+		_shop_list_box.add_child(btn)
+
+	_shop_selected = clampi(_shop_selected, 0, _shop_items.size() - 1)
+	_select_shop_item(_shop_selected)
+
+
+func _select_shop_item(index: int) -> void:
+	_shop_selected = index
+	for i in range(_shop_list_box.get_child_count()):
+		var child := _shop_list_box.get_child(i)
+		if child is Button:
+			child.add_theme_color_override("font_color",
+				ACCENT_SHOP if i == index else GameModal.MUTED)
+	_show_shop_detail(index)
+
+
+func _show_shop_detail(index: int) -> void:
+	if index < 0 or index >= _shop_items.size():
+		return
+	var item: Dictionary = _shop_items[index]
+	var stock := int(item.get("stock", -1))
+	var stock_text := "库存: %d 个" % stock if stock >= 0 else "无限供应"
+	_shop_detail.text = "\n".join([
+		"[b][color=#ffaa00]%s[/color][/b]" % item.get("name", "???"),
+		"[color=#ffdd00]价格: %d 铜币[/color]" % int(item.get("price", 0)),
+		"[color=#888888]%s[/color]" % stock_text,
+		"",
+		"[color=#b2b2b2]%s[/color]" % item.get("desc", "(无描述)"),
+	])
+	var coins := int(GameEngine.state.stats.get("coins", 0))
+	_shop_buy_btn.disabled = coins < int(item.get("price", 0)) or stock == 0
+
+
+func _buy_selected() -> void:
+	if _shop_selected < 0 or _shop_selected >= _shop_items.size():
+		return
+	var item: Dictionary = _shop_items[_shop_selected]
+	var result: Dictionary = GameEngine.buy_item(_shop_id, item.get("item_id", ""), 1)
+	var color := "#00ff66" if result.get("success", false) else "#ff5555"
+	_append_history("[color=%s]%s[/color]" % [color, result.get("message", "购买失败")])
+	_refresh_shop()
+
+
+## ────────────────────────── 日记 ──────────────────────────
+
+## 只有拿到「日记本」这个物品（或置了对应 flag）才允许打开
+func _refresh_diary_button() -> void:
+	var has_diary := bool(GameEngine.get_flag("has_diary", false))
+	if not has_diary:
+		for item in GameEngine.inv_mgr.all():
+			var item_id := str(item.get("id", ""))
+			if item_id == "diary" or item_id == "old_diary":
+				has_diary = true
+				break
+	_btn_diary.text = "[D] 日记" if has_diary else "[ ] ---"
+	_btn_diary.disabled = not has_diary
+	_set_diary_flash(has_diary and bool(GameEngine.get_flag("sys_diary_unread", false)))
+
+
+## 有未读任务/笔记时让日记按钮呼吸闪烁
+func _set_diary_flash(on: bool) -> void:
+	if _diary_flash_tween != null and _diary_flash_tween.is_valid():
+		_diary_flash_tween.kill()
+	_diary_flash_tween = null
+	_btn_diary.modulate = Color.WHITE
+	if not on:
+		return
+	_diary_flash_tween = create_tween().set_loops()
+	_diary_flash_tween.tween_property(_btn_diary, "modulate:a", 0.35, 0.4)
+	_diary_flash_tween.tween_property(_btn_diary, "modulate:a", 1.0, 0.4)
+
+
+func _open_diary() -> void:
+	if _btn_diary.disabled:
+		return
+	# 打开即视为已读（与原版 on_mount 一致）
+	GameEngine.set_flag("sys_diary_unread", false)
+	_set_diary_flash(false)
+
+	_diary_selected = 0
+	var modal := _make_modal("日 记", ACCENT_DIARY, 720.0, 330.0)
+	_diary_modal = modal
+
+	var main := HBoxContainer.new()
+	main.add_theme_constant_override("separation", 12)
+	main.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	var list_scroll := ScrollContainer.new()
+	list_scroll.custom_minimum_size = Vector2(250, 290)
+	list_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	list_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_diary_list_box = VBoxContainer.new()
+	_diary_list_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list_scroll.add_child(_diary_list_box)
+	main.add_child(list_scroll)
+
+	_diary_detail = RichTextLabel.new()
+	_diary_detail.bbcode_enabled = true
+	_diary_detail.scroll_active = false
+	_diary_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_diary_detail.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_diary_detail.add_theme_color_override("default_color", GameModal.BODY_TEXT)
+	main.add_child(_diary_detail)
+
+	modal.add_node(main)
+
+	_diary_track_btn = modal.add_action("track", "[T] 追踪任务", ACCENT_DIARY)
+	_diary_delete_btn = modal.add_action("delete", "[D] 删除笔记")
+	modal.add_action("new", "[N] 新建笔记", GameModal.ACCENT_GREEN)
+	modal.add_action("close", "[ESC] 关闭")
+	modal.action_pressed.connect(func(id: String) -> void:
+		match id:
+			"track":
+				_toggle_track_selected()
+			"delete":
+				_delete_selected_note()
+			"new":
+				_open_new_note()
+			_:
+				modal.close()
+	)
+
+	_rebuild_diary_entries()
+	_push_modal(modal)
+
+
+func _rebuild_diary_entries() -> void:
+	for child in _diary_list_box.get_children():
+		_diary_list_box.remove_child(child)
+		child.queue_free()
+
+	_diary_entries = []
+	var diary: Dictionary = GameEngine.state.diary
+	var tasks: Array = diary.get("tasks", [])
+	var notes: Array = diary.get("notes", [])
+
+	if not tasks.is_empty():
+		_diary_list_box.add_child(_make_section_header("── 任务 ──"))
+		for task in tasks:
+			_diary_entries.append({"type": "task", "data": task})
+			var label := str(task.get("title", "???"))
+			if task.get("done", false):
+				label = "✓ " + label
+			_diary_list_box.add_child(_make_entry_button(_diary_entries.size() - 1, label))
+
+	if not notes.is_empty():
+		_diary_list_box.add_child(_make_section_header("── 笔记 ──"))
+		for note in notes:
+			_diary_entries.append({"type": "note", "data": note})
+			_diary_list_box.add_child(_make_entry_button(_diary_entries.size() - 1, str(note.get("title", "???"))))
+
+	if _diary_entries.is_empty():
+		var empty := Label.new()
+		empty.text = "（日记还是空的）"
+		empty.add_theme_color_override("font_color", GameModal.MUTED)
+		_diary_list_box.add_child(empty)
+		_diary_detail.text = ""
+		_diary_track_btn.disabled = true
+		_diary_delete_btn.disabled = true
+		return
+
+	_diary_selected = clampi(_diary_selected, 0, _diary_entries.size() - 1)
+	_select_diary_entry(_diary_selected)
+
+
+func _make_section_header(text: String) -> Label:
+	var header := Label.new()
+	header.text = text
+	header.add_theme_color_override("font_color", ACCENT_DIARY)
+	return header
+
+
+func _make_entry_button(index: int, text: String) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	btn.custom_minimum_size = Vector2(0, 30)
+	_diary_modal.style_button(btn, ACCENT_DIARY)
+	btn.add_theme_color_override("font_color",
+		ACCENT_DIARY if index == _diary_selected else GameModal.MUTED)
+	btn.pressed.connect(_select_diary_entry.bind(index))
+	return btn
+
+
+## 选中某条：列表里只有按钮算条目，小节标题（Label）跳过不编号
+func _select_diary_entry(index: int) -> void:
+	if index < 0 or index >= _diary_entries.size():
+		return
+	_diary_selected = index
+	var entry_index := 0
+	for child in _diary_list_box.get_children():
+		if not (child is Button):
+			continue
+		child.add_theme_color_override("font_color",
+			ACCENT_DIARY if entry_index == index else GameModal.MUTED)
+		entry_index += 1
+	_show_diary_detail(index)
+
+
+func _show_diary_detail(index: int) -> void:
+	var entry: Dictionary = _diary_entries[index]
+	var data: Dictionary = entry["data"]
+	if entry["type"] == "task":
+		_diary_delete_btn.disabled = true
+		_diary_track_btn.disabled = false
+		var tracked_id := str(GameEngine.get_flag("sys_tracked_task_id", ""))
+		_diary_track_btn.text = "[T] 取消追踪" if tracked_id == str(data.get("id", "")) else "[T] 追踪任务"
+		var status := "[color=#557766]已完成[/color]" if data.get("done", false) else "[color=#66fcf1]进行中[/color]"
+		_diary_detail.text = "\n".join([
+			"[b][color=#e6b800]%s[/color][/b]" % data.get("title", "???"),
+			"状态: %s" % status,
+			"",
+			"[color=#c5c6c7]%s[/color]" % data.get("content", "(无描述)"),
+		])
+	else:
+		_diary_delete_btn.disabled = false
+		_diary_track_btn.disabled = true
+		_diary_detail.text = "\n".join([
+			"[b][color=#ffaa00]%s[/color][/b]" % data.get("title", "???"),
+			"[color=#888888]记录于: %s[/color]" % data.get("created", ""),
+			"",
+			"[color=#c5c6c7]%s[/color]" % data.get("content", ""),
+		])
+
+
+func _toggle_track_selected() -> void:
+	if _diary_selected < 0 or _diary_selected >= _diary_entries.size():
+		return
+	var entry: Dictionary = _diary_entries[_diary_selected]
+	if entry["type"] != "task":
+		return
+	var task_id := str(entry["data"].get("id", ""))
+	var current := str(GameEngine.get_flag("sys_tracked_task_id", ""))
+	GameEngine.set_flag("sys_tracked_task_id", "" if current == task_id else task_id)
+	_show_diary_detail(_diary_selected)
+	_refresh_tracked_task()
+
+
+func _delete_selected_note() -> void:
+	if _diary_selected < 0 or _diary_selected >= _diary_entries.size():
+		return
+	var entry: Dictionary = _diary_entries[_diary_selected]
+	if entry["type"] != "note":
+		return
+	var note_id := str(entry["data"].get("id", ""))
+	var notes: Array = GameEngine.state.diary.get("notes", [])
+	for i in range(notes.size()):
+		if str(notes[i].get("id", "")) == note_id:
+			notes.remove_at(i)
+			break
+	_diary_selected = max(0, _diary_selected - 1)
+	_rebuild_diary_entries()
+
+
+func _open_new_note() -> void:
+	var modal := _make_modal("新建笔记", ACCENT_DIARY, 580.0, 60.0)
+	modal.add_text("标题:", GameModal.MUTED)
+	var title_input := LineEdit.new()
+	title_input.placeholder_text = "输入笔记标题..."
+	title_input.custom_minimum_size = Vector2(0, 34)
+	modal.add_node(title_input)
+
+	modal.add_text("内容:", GameModal.MUTED)
+	var content_input := LineEdit.new()
+	content_input.placeholder_text = "输入笔记内容..."
+	content_input.custom_minimum_size = Vector2(0, 34)
+	modal.add_node(content_input)
+
+	modal.add_action("save", "[保存]", GameModal.ACCENT_GREEN)
+	modal.add_action("cancel", "[ESC] 取消")
+	modal.action_pressed.connect(func(id: String) -> void:
+		if id == "save":
+			_save_new_note(title_input.text, content_input.text)
+		modal.close()
+	)
+	_push_modal(modal)
+	# 让光标直接落在标题框里（弹窗 open() 之后抢焦点，才不会被底部按钮抢走）
+	title_input.grab_focus.call_deferred()
+
+
+func _save_new_note(title: String, content: String) -> void:
+	var clean_title := title.strip_edges()
+	if clean_title.is_empty():
+		return
+	var now := Time.get_datetime_string_from_system(false, true)
+	GameEngine.state.diary["notes"].append({
+		"id": "note_%s" % now.replace("-", "").replace(":", "").replace(" ", ""),
+		"title": clean_title,
+		"content": content.strip_edges(),
+		"created": now.substr(0, 16),
+	})
+	GameEngine.set_flag("sys_diary_unread", true)
+	_diary_selected = _diary_entries.size()
+	_rebuild_diary_entries()
+	_set_diary_flash(false)

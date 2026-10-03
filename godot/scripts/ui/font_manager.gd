@@ -98,6 +98,11 @@ func style_label(style: String) -> String:
 	return STYLE_LABELS.get(style, style)
 
 
+## 当前的字体风格名（设置界面显示用）
+func current_style() -> String:
+	return _current
+
+
 ## 切到下一个风格并立即生效，返回新风格名
 func cycle_style() -> String:
 	var idx := STYLE_ORDER.find(_current)
@@ -113,8 +118,7 @@ func _make_system_font() -> SystemFont:
 
 
 ## 像素字体按点阵渲染：关掉抗锯齿、亚像素定位和字形微调，边缘才干净。
-## 注意：像素字体在「设计字号」（这两款都是 12px）下最清晰，
-## 现在界面用的是 16/17/18px，属于非整数倍缩放，字体会略糊——字号对齐留到排版打磨那步做。
+## 字号统一由 apply_level() 控制，只取 12 的整数倍，所以这里不用逐节点调。
 func _load_pixel_font(path: String) -> FontFile:
 	var font := load(path) as FontFile
 	if font == null:

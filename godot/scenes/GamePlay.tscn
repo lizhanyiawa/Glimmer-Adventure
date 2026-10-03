@@ -433,8 +433,7 @@ text = "[O] 设置"
 [node name="BtnDiary" type="Button" parent="Root/Layout/BottomConsole/SystemPanel/LeftButtons"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
-disabled = true
-theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_styles/normal = SubResource("SB_sys")
 text = "[D] 日记"
 

@@ -6,8 +6,13 @@ extends RefCounted
 ## 这里转成 RichTextLabel 认得的 BBCode。标签名与 Python 版完全一致，
 ## 所以 data/ 里的文本一个字都不用改。
 ##
-## 后续做动效时，<shake> <wave> <flash> 会映射成真正的逐字动画，
-## 而不是现在这样简单地换个颜色。
+## 动效标签：原 Python 版靠 ASCII 抖动/逐字换色硬凑，这里直接用
+## RichTextLabel 的原生 BBCode 特效——同样是那几个标签名，data/ 不用改。
+const ANIM_TAGS: Dictionary = {
+	"shake": {"open": "[shake]", "close": "[/shake]"},
+	"wave": {"open": "[wave]", "close": "[/wave]"},
+	"flash": {"open": "[pulse]", "close": "[/pulse]"},
+}
 
 ## 样式标签 → BBCode 开闭标签。key 与 Python 版 STYLE_TAGS 保持一致。
 const STYLE_TAGS: Dictionary = {
@@ -34,13 +39,14 @@ static func render(text: String) -> String:
 	return strip_flow_tags(to_bbcode(text))
 
 
-## 自定义样式标签 → BBCode
+## 自定义样式/动效标签 → BBCode
 static func to_bbcode(text: String) -> String:
 	var result := text
-	for tag in STYLE_TAGS:
-		var pair: Dictionary = STYLE_TAGS[tag]
-		result = result.replace("<%s>" % tag, pair["open"])
-		result = result.replace("</%s>" % tag, pair["close"])
+	for map in [STYLE_TAGS, ANIM_TAGS]:
+		for tag in map:
+			var pair: Dictionary = map[tag]
+			result = result.replace("<%s>" % tag, pair["open"])
+			result = result.replace("</%s>" % tag, pair["close"])
 	return result
 
 

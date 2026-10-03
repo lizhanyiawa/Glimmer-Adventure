@@ -1,0 +1,493 @@
+[gd_scene load_steps=13 format=3]
+
+; 主玩法画面（渲染层第一版草案）
+; 布局对应 view/game_menu.py 的 GamePlayScreen：
+;   状态栏(HP/SAN + 位置 + 属性) / 主视口(故事框 + 历史 + 追踪任务) / 底部(6 选项 + 系统按钮)
+; 场景里填的是占位数据，运行时由 scripts/ui/game_play.gd 全部覆盖为引擎里的真实数据。
+
+[ext_resource type="Script" path="res://scripts/ui/game_play.gd" id="1_gameplay"]
+
+[sub_resource type="SystemFont" id="SystemFont_cjk"]
+font_names = PackedStringArray("Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "Noto Sans CJK SC", "sans-serif")
+
+[sub_resource type="Theme" id="Theme_main"]
+default_font = SubResource("SystemFont_cjk")
+default_font_size = 16
+
+[sub_resource type="StyleBoxFlat" id="SB_status"]
+content_margin_left = 10.0
+content_margin_top = 8.0
+content_margin_right = 10.0
+content_margin_bottom = 8.0
+bg_color = Color(0.121569, 0.156863, 0.2, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.270588, 0.952941, 1, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="SB_story"]
+content_margin_left = 14.0
+content_margin_top = 12.0
+content_margin_right = 14.0
+content_margin_bottom = 12.0
+bg_color = Color(0.121569, 0.156863, 0.2, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.270588, 0.952941, 1, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="SB_history"]
+content_margin_left = 10.0
+content_margin_top = 8.0
+content_margin_right = 10.0
+content_margin_bottom = 8.0
+bg_color = Color(0.058824, 0.062745, 0.086275, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.333333, 0.333333, 0.333333, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="SB_tracked"]
+content_margin_left = 10.0
+content_margin_top = 6.0
+content_margin_right = 10.0
+content_margin_bottom = 6.0
+bg_color = Color(0.101961, 0.101961, 0.062745, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.901961, 0.721569, 0, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="SB_opt"]
+content_margin_left = 8.0
+content_margin_top = 6.0
+content_margin_right = 8.0
+content_margin_bottom = 6.0
+bg_color = Color(0.066667, 0.078431, 0.117647, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.270588, 0.952941, 1, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="SB_opt_hover"]
+content_margin_left = 8.0
+content_margin_top = 6.0
+content_margin_right = 8.0
+content_margin_bottom = 6.0
+bg_color = Color(0.4, 0.988235, 0.945098, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.4, 0.988235, 0.945098, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="SB_sys"]
+content_margin_left = 8.0
+content_margin_top = 4.0
+content_margin_right = 8.0
+content_margin_bottom = 4.0
+bg_color = Color(0.121569, 0.156863, 0.2, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="SB_bar_hp"]
+bg_color = Color(1, 0.2, 0.2, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="SB_bar_san"]
+bg_color = Color(0.2, 0.9, 0.3, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[node name="GamePlay" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = SubResource("Theme_main")
+script = ExtResource("1_gameplay")
+
+[node name="Bg" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.043137, 0.047059, 0.062745, 1)
+
+[node name="Root" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="Layout" type="VBoxContainer" parent="Root"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="StatusBar" type="PanelContainer" parent="Root/Layout"]
+custom_minimum_size = Vector2(0, 84)
+layout_mode = 2
+theme_override_styles/panel = SubResource("SB_status")
+
+[node name="StatusRow" type="HBoxContainer" parent="Root/Layout/StatusBar"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="StatsLeft" type="VBoxContainer" parent="Root/Layout/StatusBar/StatusRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 30.0
+theme_override_constants/separation = 4
+
+[node name="HpLabel" type="Label" parent="Root/Layout/StatusBar/StatusRow/StatsLeft"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.772549, 0.776471, 0.780392, 1)
+text = "HP: 78/100"
+
+[node name="HpBar" type="ProgressBar" parent="Root/Layout/StatusBar/StatusRow/StatsLeft"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+theme_override_styles/fill = SubResource("SB_bar_hp")
+max_value = 100.0
+value = 78.0
+show_percentage = false
+
+[node name="SanLabel" type="Label" parent="Root/Layout/StatusBar/StatusRow/StatsLeft"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.772549, 0.776471, 0.780392, 1)
+text = "SAN: 64/100"
+
+[node name="SanBar" type="ProgressBar" parent="Root/Layout/StatusBar/StatusRow/StatsLeft"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+theme_override_styles/fill = SubResource("SB_bar_san")
+max_value = 100.0
+value = 64.0
+show_percentage = false
+
+[node name="LocationCenter" type="CenterContainer" parent="Root/Layout/StatusBar/StatusRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 40.0
+
+[node name="LocationLabel" type="Label" parent="Root/Layout/StatusBar/StatusRow/LocationCenter"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.666667, 0, 1)
+theme_override_font_sizes/font_size = 18
+text = "位置：风息村 · 村口"
+
+[node name="StatsRight" type="VBoxContainer" parent="Root/Layout/StatusBar/StatusRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 30.0
+theme_override_constants/separation = 2
+
+[node name="CombatLabel" type="Label" parent="Root/Layout/StatusBar/StatusRow/StatsRight"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.988235, 0.945098, 1)
+text = "ATK: 12   DEF: 8"
+horizontal_alignment = 2
+
+[node name="MindLabel" type="Label" parent="Root/Layout/StatusBar/StatusRow/StatsRight"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.988235, 0.945098, 1)
+text = "INT: 14   AGI: 11"
+horizontal_alignment = 2
+
+[node name="CorruptionLabel" type="Label" parent="Root/Layout/StatusBar/StatusRow/StatsRight"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.988235, 0.945098, 1)
+text = "COR: 3%"
+horizontal_alignment = 2
+
+[node name="MainViewport" type="HBoxContainer" parent="Root/Layout"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="StoryBox" type="PanelContainer" parent="Root/Layout/MainViewport"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+size_flags_stretch_ratio = 65.0
+theme_override_styles/panel = SubResource("SB_story")
+
+[node name="StoryText" type="RichTextLabel" parent="Root/Layout/MainViewport/StoryBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/default_color = Color(0.772549, 0.776471, 0.780392, 1)
+theme_override_font_sizes/normal_font_size = 17
+bbcode_enabled = true
+text = "（此处为渲染层占位文本，用于检查中文排版与换行）
+
+雾气还没散。你能听见远处有水声，像是溪流，又像是别的什么。
+
+[color=#ffaa00]【占位】[/color]这一段用来验证 BBCode 效果。原项目里的自定义标签（<fire> / <shadow> / <ice> 等）在 Godot 中会直接映射成 BBCode： [color=#ff6666]红色[/color] 表示危险，[color=#66fcf1]青色[/color] 表示可用信息，[b]加粗[/b] 表示强调。
+
+本段之后的长文本会自动换行并撑满故事框，滚动条在内容超出时出现。"
+scroll_active = true
+
+[node name="RightPanel" type="VBoxContainer" parent="Root/Layout/MainViewport"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+size_flags_stretch_ratio = 35.0
+theme_override_constants/separation = 8
+
+[node name="HistoryBox" type="PanelContainer" parent="Root/Layout/MainViewport/RightPanel"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("SB_history")
+
+[node name="HistoryText" type="RichTextLabel" parent="Root/Layout/MainViewport/RightPanel/HistoryBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/default_color = Color(0.6, 0.6, 0.65, 1)
+theme_override_font_sizes/normal_font_size = 14
+bbcode_enabled = true
+text = "› 你睁开了眼。
+› 你发现自己躺在陌生的地上。
+› 你检查了随身物品。
+› 你听到有人靠近。"
+scroll_active = true
+scroll_following = true
+
+[node name="TrackedTask" type="PanelContainer" parent="Root/Layout/MainViewport/RightPanel"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+theme_override_styles/panel = SubResource("SB_tracked")
+
+[node name="TrackedLabel" type="Label" parent="Root/Layout/MainViewport/RightPanel/TrackedTask"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.901961, 0.721569, 0, 1)
+text = "追踪任务：占位任务名"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="BottomConsole" type="HBoxContainer" parent="Root/Layout"]
+custom_minimum_size = Vector2(0, 190)
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="OptionGrid" type="GridContainer" parent="Root/Layout/BottomConsole"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 65.0
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+columns = 3
+
+[node name="Opt1" type="Button" parent="Root/Layout/BottomConsole/OptionGrid"]
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.4, 0.988235, 0.945098, 1)
+theme_override_colors/font_hover_color = Color(0.043137, 0.047059, 0.062745, 1)
+theme_override_styles/normal = SubResource("SB_opt")
+theme_override_styles/hover = SubResource("SB_opt_hover")
+theme_override_styles/pressed = SubResource("SB_opt_hover")
+theme_override_styles/focus = SubResource("SB_opt")
+text = "[1] 走上前去"
+
+[node name="Opt2" type="Button" parent="Root/Layout/BottomConsole/OptionGrid"]
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.4, 0.988235, 0.945098, 1)
+theme_override_colors/font_hover_color = Color(0.043137, 0.047059, 0.062745, 1)
+theme_override_styles/normal = SubResource("SB_opt")
+theme_override_styles/hover = SubResource("SB_opt_hover")
+theme_override_styles/pressed = SubResource("SB_opt_hover")
+theme_override_styles/focus = SubResource("SB_opt")
+text = "[2] 留在原地观察"
+
+[node name="Opt3" type="Button" parent="Root/Layout/BottomConsole/OptionGrid"]
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.4, 0.988235, 0.945098, 1)
+theme_override_colors/font_hover_color = Color(0.043137, 0.047059, 0.062745, 1)
+theme_override_styles/normal = SubResource("SB_opt")
+theme_override_styles/hover = SubResource("SB_opt_hover")
+theme_override_styles/pressed = SubResource("SB_opt_hover")
+theme_override_styles/focus = SubResource("SB_opt")
+text = "[3] 查看随身物品"
+
+[node name="Opt4" type="Button" parent="Root/Layout/BottomConsole/OptionGrid"]
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.4, 0.988235, 0.945098, 1)
+theme_override_colors/font_hover_color = Color(0.043137, 0.047059, 0.062745, 1)
+theme_override_styles/normal = SubResource("SB_opt")
+theme_override_styles/hover = SubResource("SB_opt_hover")
+theme_override_styles/pressed = SubResource("SB_opt_hover")
+theme_override_styles/focus = SubResource("SB_opt")
+text = "[4] 试着搭话"
+
+[node name="Opt5" type="Button" parent="Root/Layout/BottomConsole/OptionGrid"]
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.4, 0.988235, 0.945098, 1)
+theme_override_colors/font_hover_color = Color(0.043137, 0.047059, 0.062745, 1)
+theme_override_styles/normal = SubResource("SB_opt")
+theme_override_styles/hover = SubResource("SB_opt_hover")
+theme_override_styles/pressed = SubResource("SB_opt_hover")
+theme_override_styles/focus = SubResource("SB_opt")
+text = "[5] 转身离开"
+
+[node name="Opt6" type="Button" parent="Root/Layout/BottomConsole/OptionGrid"]
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.4, 0.988235, 0.945098, 1)
+theme_override_colors/font_hover_color = Color(0.043137, 0.047059, 0.062745, 1)
+theme_override_styles/normal = SubResource("SB_opt")
+theme_override_styles/hover = SubResource("SB_opt_hover")
+theme_override_styles/pressed = SubResource("SB_opt_hover")
+theme_override_styles/focus = SubResource("SB_opt")
+text = "[6] 屏住呼吸"
+
+[node name="SystemPanel" type="HBoxContainer" parent="Root/Layout/BottomConsole"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 35.0
+theme_override_constants/separation = 8
+
+[node name="LeftButtons" type="VBoxContainer" parent="Root/Layout/BottomConsole/SystemPanel"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="BtnProfile" type="Button" parent="Root/Layout/BottomConsole/SystemPanel/LeftButtons"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_styles/normal = SubResource("SB_sys")
+text = "[P] 人物"
+
+[node name="BtnInventory" type="Button" parent="Root/Layout/BottomConsole/SystemPanel/LeftButtons"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_styles/normal = SubResource("SB_sys")
+text = "[I] 物品"
+
+[node name="BtnSave" type="Button" parent="Root/Layout/BottomConsole/SystemPanel/LeftButtons"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_styles/normal = SubResource("SB_sys")
+text = "[S] 保存"
+
+[node name="BtnSettings" type="Button" parent="Root/Layout/BottomConsole/SystemPanel/LeftButtons"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_styles/normal = SubResource("SB_sys")
+text = "[O] 设置"
+
+[node name="BtnDiary" type="Button" parent="Root/Layout/BottomConsole/SystemPanel/LeftButtons"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+disabled = true
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_styles/normal = SubResource("SB_sys")
+text = "[D] 日记"
+
+[node name="RightButtons" type="VBoxContainer" parent="Root/Layout/BottomConsole/SystemPanel"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="BtnShop" type="Button" parent="Root/Layout/BottomConsole/SystemPanel/RightButtons"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_styles/normal = SubResource("SB_sys")
+text = "[T] 交易"
+
+[node name="BtnPlaceholder1" type="Button" parent="Root/Layout/BottomConsole/SystemPanel/RightButtons"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+disabled = true
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_styles/normal = SubResource("SB_sys")
+text = "[ ] ---"
+
+[node name="BtnPlaceholder2" type="Button" parent="Root/Layout/BottomConsole/SystemPanel/RightButtons"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+disabled = true
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_styles/normal = SubResource("SB_sys")
+text = "[ ] ---"
+
+[node name="BtnPlaceholder3" type="Button" parent="Root/Layout/BottomConsole/SystemPanel/RightButtons"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+disabled = true
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_styles/normal = SubResource("SB_sys")
+text = "[ ] ---"
+
+[node name="BtnPlaceholder4" type="Button" parent="Root/Layout/BottomConsole/SystemPanel/RightButtons"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+disabled = true
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_styles/normal = SubResource("SB_sys")
+text = "[ ] ---"

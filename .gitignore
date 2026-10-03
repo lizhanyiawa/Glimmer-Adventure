@@ -1,7 +1,28 @@
+# ── 运行产物 / 本地存档 ──
 saves/
 engine_config.json
+
+# ── Python ──
 __pycache__/
+*.py[cod]
+
+# ── Godot ──
+# 导入缓存与编辑器状态，体积大且各机器不同，不入库
+# 注意：资源旁边的 *.import 文件是要入库的，别一起忽略了
+.godot/
+
+# ── 编辑器 / 工具 ──
 .vs/
+.idea/
+.vscode/
+.codegraph/
+.commandcode/
+
+# ── 本机专属配置（含绝对路径） ──
+.mcp.json
+
+# ── 私人设定与草稿 ──
+自嗨产物.txt
 todo.txt
 structure.txt
 story.txt

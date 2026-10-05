@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 ; 主玩法画面（渲染层第一版草案）
 ; 布局对应 view/game_menu.py 的 GamePlayScreen：
@@ -114,15 +114,29 @@ corner_radius_top_right = 3
 corner_radius_bottom_right = 3
 corner_radius_bottom_left = 3
 
+; 血条/理智条：空槽是暗底细描边，填充色由 game_play.gd 按比例实时改
+; （高=青 #66fcf1、中=琥珀 #ffaa00、低=红 #ff4444，与 Python 版一致）。
+[sub_resource type="StyleBoxFlat" id="SB_bar_track"]
+bg_color = Color(0.137255, 0.156863, 0.2, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.227451, 0.254902, 0.313726, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
 [sub_resource type="StyleBoxFlat" id="SB_bar_hp"]
-bg_color = Color(1, 0.2, 0.2, 1)
+bg_color = Color(0.4, 0.988235, 0.945098, 1)
 corner_radius_top_left = 2
 corner_radius_top_right = 2
 corner_radius_bottom_right = 2
 corner_radius_bottom_left = 2
 
 [sub_resource type="StyleBoxFlat" id="SB_bar_san"]
-bg_color = Color(0.2, 0.9, 0.3, 1)
+bg_color = Color(0.4, 0.988235, 0.945098, 1)
 corner_radius_top_left = 2
 corner_radius_top_right = 2
 corner_radius_bottom_right = 2
@@ -162,8 +176,17 @@ theme_override_constants/margin_bottom = 12
 layout_mode = 2
 theme_override_constants/separation = 8
 
+; 位置显示：单独一行贴在画面最顶上。刻意不给 font_size 覆盖值——
+; 之前写死 12px，在「放大」档（正文 24px）下它只有别人的一半大，看着很突兀；
+; 现在跟随全局主题，任何字号档位下都和正文一致，切换房间时由脚本弹入高亮。
+[node name="LocationLabel" type="Label" parent="Root/Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.666667, 0, 1)
+text = "位置：风息村 · 村口"
+horizontal_alignment = 1
+
 [node name="StatusBar" type="PanelContainer" parent="Root/Layout"]
-custom_minimum_size = Vector2(0, 84)
+custom_minimum_size = Vector2(0, 76)
 layout_mode = 2
 theme_override_styles/panel = SubResource("SB_status")
 
@@ -174,7 +197,7 @@ theme_override_constants/separation = 16
 [node name="StatsLeft" type="VBoxContainer" parent="Root/Layout/StatusBar/StatusRow"]
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_stretch_ratio = 30.0
+size_flags_stretch_ratio = 50.0
 theme_override_constants/separation = 4
 
 [node name="HpLabel" type="Label" parent="Root/Layout/StatusBar/StatusRow/StatsLeft"]
@@ -182,9 +205,13 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.772549, 0.776471, 0.780392, 1)
 text = "HP: 78/100"
 
+; 血条长度由 game_play.gd 按最大值算（会随最大生命/理智变长，且有上限），
+; 所以这里用 SHRINK_BEGIN 让 VBox 保持它的最小宽度、靠左，而不是拉满整行。
 [node name="HpBar" type="ProgressBar" parent="Root/Layout/StatusBar/StatusRow/StatsLeft"]
-custom_minimum_size = Vector2(0, 12)
+custom_minimum_size = Vector2(120, 8)
 layout_mode = 2
+size_flags_horizontal = 0
+theme_override_styles/background = SubResource("SB_bar_track")
 theme_override_styles/fill = SubResource("SB_bar_hp")
 max_value = 100.0
 value = 78.0
@@ -196,28 +223,19 @@ theme_override_colors/font_color = Color(0.772549, 0.776471, 0.780392, 1)
 text = "SAN: 64/100"
 
 [node name="SanBar" type="ProgressBar" parent="Root/Layout/StatusBar/StatusRow/StatsLeft"]
-custom_minimum_size = Vector2(0, 12)
+custom_minimum_size = Vector2(120, 8)
 layout_mode = 2
+size_flags_horizontal = 0
+theme_override_styles/background = SubResource("SB_bar_track")
 theme_override_styles/fill = SubResource("SB_bar_san")
 max_value = 100.0
 value = 64.0
 show_percentage = false
 
-[node name="LocationCenter" type="CenterContainer" parent="Root/Layout/StatusBar/StatusRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_stretch_ratio = 40.0
-
-[node name="LocationLabel" type="Label" parent="Root/Layout/StatusBar/StatusRow/LocationCenter"]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.666667, 0, 1)
-theme_type_variation = &"Heading"
-text = "位置：风息村 · 村口"
-
 [node name="StatsRight" type="VBoxContainer" parent="Root/Layout/StatusBar/StatusRow"]
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_stretch_ratio = 30.0
+size_flags_stretch_ratio = 50.0
 theme_override_constants/separation = 2
 
 [node name="CombatLabel" type="Label" parent="Root/Layout/StatusBar/StatusRow/StatsRight"]
@@ -281,10 +299,7 @@ layout_mode = 2
 size_flags_vertical = 3
 theme_override_colors/default_color = Color(0.6, 0.6, 0.65, 1)
 bbcode_enabled = true
-text = "› 你睁开了眼。
-› 你发现自己躺在陌生的地上。
-› 你检查了随身物品。
-› 你听到有人靠近。"
+text = ""
 scroll_active = true
 scroll_following = true
 

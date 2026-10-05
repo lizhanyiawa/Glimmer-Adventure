@@ -24,11 +24,18 @@ var stats: Dictionary = {
 
 var inventory: Array = []
 var equipment: Dictionary = {}
+## 掉在地上的物品：{ room_id: [ {id, name, desc, type, qty}, ... ] }
+## 玩家在物品栏里「丢弃」的东西会落到当前房间的地上，还能捡回来。
+var ground: Dictionary = {}
 var diary: Dictionary = {
 	"tasks": [],
 	"notes": [],
 }
 var flags: Dictionary = {}
+## 游戏内时间：第几天 + 当前小时（0-23）。
+## 换房间会推进，睡觉直接跳到第二天早上。见 GameEngine.advance_time()。
+var game_day: int = 1
+var game_time: int = 7
 
 
 ## 序列化，供存档使用
@@ -41,8 +48,11 @@ func to_dict() -> Dictionary:
 		"stats": stats,
 		"inventory": inventory,
 		"equipment": equipment,
+		"ground": ground,
 		"diary": diary,
 		"flags": flags,
+		"game_day": game_day,
+		"game_time": game_time,
 	}
 
 
@@ -64,5 +74,8 @@ func from_dict(data: Dictionary) -> void:
 
 	inventory = data.get("inventory", [])
 	equipment = data.get("equipment", {})
+	ground = data.get("ground", {})
 	diary = data.get("diary", diary)
 	flags = data.get("flags", {})
+	game_day = int(data.get("game_day", game_day))
+	game_time = int(data.get("game_time", game_time))

@@ -5,14 +5,15 @@ extends Node
 ## 职责：加载 data/*.json、管理 GameState、flag、效果、装备、商店、存读档。
 ## 本文件不包含任何界面代码——界面靠下面的信号被动刷新。
 ##
-## 【数据目录】Godot 项目在 d:\The adventure\godot\，而 data/ 在上一层。
-## 优先读项目内的 res://data/（以后想把数据搬进来就直接生效），
-## 没有则回退读上一层的 ../data/。打包后需要把 data/ 复制进 res://。
+## 【数据目录】data/ 已收进工程，位于 res://data/（即 godot/data/）。
+## 为兼容旧布局，仍保留回退：项目上一层的 ../data/。
+## 数据搬进工程后，导出打包才能带上数据（res:// 之外的文件不会被打包）。
 
 signal stats_changed          ## 属性/血蓝变化
 signal inventory_changed      ## 背包变化
 signal room_changed(room_id: String)  ## 房间变化
 signal game_loaded            ## 读档完成
+signal time_changed(day: int, hour: int)  ## 游戏内时间变化
 
 ## flag 命名空间前缀。新增 flag 必须遵循 [前缀]_[子域]_[含义]，避免命名冲突。
 const FLAG_PREFIXES: Array = [
@@ -29,10 +30,22 @@ const MAX_STAT: int = 99
 ## 只受 0 下限约束、不受 99 上限约束的属性
 const NATURAL_UNCAPPED: Array = ["hp", "san"]
 
+## "直接回满"的写法：数据里写 hp_to_max / san_to_max，就不用写死 +999，
+## 将来数值膨胀到多少都能顶满（睡觉、大回复点等用它）。
+const TO_MAX_KEYS: Dictionary = {
+	"hp_to_max": "hp",
+	"san_to_max": "san",
+}
+
+## 时间显示：把一天切成几段，没有钟表时只能大致判断
+const TIME_OF_DAY: Array = [
+	[0, 4, "深夜"], [5, 7, "清晨"], [8, 11, "上午"],
+	[12, 13, "正午"], [14, 17, "下午"], [18, 19, "黄昏"], [20, 23, "夜晚"],
+]
+
 const DEFAULT_SETTINGS: Dictionary = {
 	"debug_mode": false,
 	"text_speed": "medium",
-	"corruption_rate": 1.0,
 	"sound_enabled": false,
 	"skip_intro": false,
 	"confirm_return": true,
@@ -54,9 +67,15 @@ var _items_db: Dictionary = {}
 var _rooms_db: Dictionary = {}
 var _dialogues_db: Dictionary = {}
 var _shops_db: Dictionary = {}
+var _enemies_db: Dictionary = {}
 var _legacy_flag_whitelist: Dictionary = {}
 
 var _data_root: String = ""
+## 数据加载阶段收集到的结构性问题（文本层有孤儿条目、描述数量对不上等），
+## 交给 validate_data() 一并汇报
+var _load_problems: Array = []
+## 战斗叙事里合法占位符的匹配式（只允许 {name} / {dmg}）
+var _placeholder_re: RegEx = RegEx.create_from_string("\\{([A-Za-z_]+)\\}")
 
 
 func _ready() -> void:
@@ -68,11 +87,13 @@ func _ready() -> void:
 	save_mgr = SaveManager.new()
 	settings = DEFAULT_SETTINGS.duplicate()
 	load_settings()
+	validate_data()
 
 
 ## ────────────────────────── 数据加载 ──────────────────────────
 
-## 解析数据目录：优先 res://data，否则用 Godot 项目上一层的 data/
+## 解析数据目录：优先 res://data（数据已收进工程），
+## 找不到才回退到 Godot 项目上一层的 ../data/（兼容旧布局）
 func _resolve_data_root() -> String:
 	if FileAccess.file_exists("res://data/items.json"):
 		return "res://data"
@@ -82,10 +103,12 @@ func _resolve_data_root() -> String:
 
 
 func _load_all_data() -> void:
+	_load_problems = []
 	_load_items_db()
 	_load_rooms_db()
 	_load_dialogues_db()
 	_load_shops_db()
+	_load_enemies_db()
 	_init_flag_whitelist()
 
 
@@ -96,6 +119,8 @@ func _load_items_db() -> void:
 	for item_id in texts:
 		if _items_db.has(item_id):
 			_items_db[item_id]["desc"] = texts[item_id].get("desc", "")
+		else:
+			_load_problems.append("items_text.json 里的 '%s' 在 items.json 中没有对应物品" % item_id)
 
 
 func _load_rooms_db() -> void:
@@ -110,6 +135,7 @@ func _load_rooms_db() -> void:
 		var texts := _read_json(entry)
 		for room_id in texts:
 			if not _rooms_db.has(room_id):
+				_load_problems.append("rooms_text 里的 '%s' 在 rooms/ 中没有对应房间" % room_id)
 				continue
 			var room: Dictionary = _rooms_db[room_id]
 			var text_data: Dictionary = texts[room_id]
@@ -117,6 +143,8 @@ func _load_rooms_db() -> void:
 			room["description"] = text_data.get("description", room.get("description", ""))
 			var alt_texts: Array = text_data.get("description_alt", [])
 			var alts: Array = room.get("description_alt", [])
+			if alt_texts.size() != alts.size():
+				_load_problems.append("房间 '%s' 的 description_alt 文本数(%d)与条件数(%d)对不上" % [room_id, alt_texts.size(), alts.size()])
 			for i in range(min(alt_texts.size(), alts.size())):
 				alts[i]["text"] = alt_texts[i]
 	if _rooms_db.is_empty():
@@ -129,10 +157,28 @@ func _load_dialogues_db() -> void:
 	for dlg_id in texts:
 		if _dialogues_db.has(dlg_id):
 			_dialogues_db[dlg_id]["text"] = texts[dlg_id].get("text", "")
+		else:
+			_load_problems.append("dialogues_text.json 里的 '%s' 在 dialogues.json 中没有对应对话" % dlg_id)
 
 
 func _load_shops_db() -> void:
 	_shops_db = _read_json(_data_root.path_join("shops.json"))
+
+
+## 敌人数据 + 战斗叙事文本合并（对应 Python 的 engine/battle.py:_load_enemies）。
+## 数值在 enemies.json，叙事在 enemies_text.json，保持逻辑与文本分离。
+func _load_enemies_db() -> void:
+	_enemies_db = _read_json(_data_root.path_join("enemies.json"))
+	var texts := _read_json(_data_root.path_join("enemies_text.json"))
+	for enemy_id in texts:
+		if not _enemies_db.has(enemy_id):
+			_load_problems.append("enemies_text.json 里的 '%s' 在 enemies.json 中没有对应敌人" % enemy_id)
+			continue
+		var enemy: Dictionary = _enemies_db[enemy_id]
+		var text_data: Dictionary = texts[enemy_id]
+		enemy["description"] = text_data.get("description", "")
+		enemy["narrative"] = text_data.get("narrative", {})
+		enemy["san_text"] = text_data.get("san_text", "")
 
 
 func _init_default_inventory() -> void:
@@ -160,6 +206,122 @@ func _collect_flags(node) -> void:
 			_collect_flags(item)
 
 
+## ────────────────────────── 启动期数据自检 ──────────────────────────
+
+## 所有数据加载完之后跑一遍：把"引用了不存在的东西"这类错误在开场就报出来，
+## 免得玩到那一步才发现是数据写错了。只在调试构建里执行，正式包不浪费时间。
+## 返回发现的问题数量（0 = 干净）。
+func validate_data() -> int:
+	if not OS.is_debug_build():
+		return 0
+
+	var problems: Array = _load_problems.duplicate()
+	_check_option_refs(_rooms_db, "room", problems)
+	_check_option_refs(_dialogues_db, "dialogue", problems)
+	_check_shops(problems)
+	_check_enemies(problems)
+	# 无前缀 flag 只是"历史遗留、建议补前缀"，不算引用错误，
+	# 不能计入返回值——否则干净数据也会被判定为有问题，自测会误报失败。
+	_report_unprefixed_flags()
+
+	if problems.is_empty():
+		print("[数据自检] 通过：引用完整，没发现明显问题。")
+		return 0
+	for problem in problems:
+		push_warning("[数据自检] " + problem)
+	push_warning("[数据自检] 共发现 %d 处问题，详见上方 warning。" % problems.size())
+	return problems.size()
+
+
+## 逐个检查房间 / 对话里所有选项的跳转目标与服务引用
+func _check_option_refs(db: Dictionary, kind: String, problems: Array) -> void:
+	for owner_id in db:
+		var node: Dictionary = db[owner_id]
+		var where := "%s/%s" % [kind, owner_id]
+		_check_ref(node.get("enter_dialogue", ""), _dialogues_db, where + ".enter_dialogue", problems)
+		_check_ref(node.get("shop", ""), _shops_db, where + ".shop", problems)
+		for option in node.get("options", []):
+			if not (option is Dictionary):
+				continue
+			var tag := "%s 的选项「%s」" % [where, option.get("text", "")]
+			_check_ref(option.get("target_room", ""), _rooms_db, tag + ".target_room", problems)
+			_check_ref(option.get("target_dialogue", ""), _dialogues_db, tag + ".target_dialogue", problems)
+			_check_ref(option.get("battle", ""), _enemies_db, tag + ".battle", problems)
+			_check_ref(option.get("shop", ""), _shops_db, tag + ".shop", problems)
+			_check_effect_items(option.get("effects", {}), tag, problems)
+
+
+## 通用引用检查：目标非空、但目标表里没有，就记一条
+func _check_ref(target, db: Dictionary, where: String, problems: Array) -> void:
+	if target is String and not target.is_empty() and not db.has(target):
+		problems.append("%s 指向了不存在的条目 '%s'" % [where, target])
+
+
+## 检查 effects 里增删的物品是否存在
+func _check_effect_items(effects: Dictionary, where: String, problems: Array) -> void:
+	if not (effects is Dictionary):
+		return
+	var items: Dictionary = effects.get("items", {})
+	for item in items.get("add", []):
+		var item_id: String = item if item is String else item.get("id", "")
+		if not _items_db.has(item_id):
+			problems.append("%s 的 effects.items.add 引用了不存在的物品 '%s'" % [where, item_id])
+	for item_id in items.get("remove", []):
+		if item_id is String and not _items_db.has(item_id):
+			problems.append("%s 的 effects.items.remove 引用了不存在的物品 '%s'" % [where, item_id])
+
+
+## 商店里出售的物品必须在 items.json 里存在
+func _check_shops(problems: Array) -> void:
+	for shop_id in _shops_db:
+		for entry in _shops_db[shop_id].get("items", []):
+			var item_id: String = entry.get("item_id", "")
+			if not _items_db.has(item_id):
+				problems.append("shop/%s 出售的物品 '%s' 在 items.json 里不存在" % [shop_id, item_id])
+
+
+## 敌人掉落物必须存在；战斗叙事里的占位符只允许 {name} / {dmg}
+func _check_enemies(problems: Array) -> void:
+	for enemy_id in _enemies_db:
+		var enemy: Dictionary = _enemies_db[enemy_id]
+		for drop in enemy.get("drops", []):
+			var drop_id: String = drop if drop is String else drop.get("id", "")
+			if not _items_db.has(drop_id):
+				problems.append("enemy/%s 的掉落物 '%s' 在 items.json 里不存在" % [enemy_id, drop_id])
+		var narrative = enemy.get("narrative", {})
+		if not (narrative is Dictionary):
+			continue
+		for key in narrative:
+			var variants: Array = narrative[key] if narrative[key] is Array else [narrative[key]]
+			for text in variants:
+				if not (text is String):
+					continue
+				for m in _placeholder_re.search_all(text):
+					var placeholder := m.get_string(1)
+					if placeholder != "name" and placeholder != "dmg":
+						problems.append("enemy/%s 的叙事 '%s' 用了未知占位符 {%s}（只支持 {name}/{dmg}）" % [enemy_id, key, placeholder])
+
+
+## 旧版遗留的无前缀 flag 汇总成一条提示（不参与错误计数）
+func _report_unprefixed_flags() -> void:
+	var unprefixed: Array = []
+	for flag_key in _legacy_flag_whitelist:
+		if not _has_namespace(flag_key):
+			unprefixed.append(flag_key)
+	if unprefixed.is_empty():
+		return
+	unprefixed.sort()
+	push_warning("[数据自检] 有 %d 个旧版 flag 没有命名空间前缀，建议逐步补上：%s" % [unprefixed.size(), ", ".join(PackedStringArray(unprefixed))])
+
+
+## flag 是否带了合法命名空间前缀
+func _has_namespace(flag_name: String) -> bool:
+	for prefix in FLAG_PREFIXES:
+		if flag_name.begins_with(prefix) and flag_name.length() > prefix.length():
+			return true
+	return false
+
+
 ## ────────────────────────── 查询接口 ──────────────────────────
 
 func get_item_def(item_id: String) -> Dictionary:
@@ -181,6 +343,14 @@ func get_dialogue(dialogue_id: String) -> Dictionary:
 		var result: Dictionary = dlg_data.duplicate(true)
 		result["id"] = dialogue_id
 		return result
+	return {}
+
+
+## 取一份敌人数据（含合并进来的叙事文本）。找不到返回空字典。
+func get_enemy(enemy_id: String) -> Dictionary:
+	var enemy_data = _enemies_db.get(enemy_id)
+	if enemy_data is Dictionary:
+		return enemy_data.duplicate(true)
 	return {}
 
 
@@ -210,12 +380,7 @@ func get_shop(shop_id: String) -> Dictionary:
 
 ## 校验 flag 名称是否符合命名空间规范
 func validate_flag_name(flag_name: String) -> bool:
-	if _legacy_flag_whitelist.has(flag_name):
-		return true
-	for prefix in FLAG_PREFIXES:
-		if flag_name.begins_with(prefix) and flag_name.length() > prefix.length():
-			return true
-	return false
+	return _legacy_flag_whitelist.has(flag_name) or _has_namespace(flag_name)
 
 
 func get_flag(key: String, default_value = false):
@@ -289,11 +454,18 @@ func resolve_room_description(room_data: Dictionary) -> String:
 ## 把 effects 里涉及的属性变化抽成 [{key, delta}] 列表，供界面提示用
 func resolve_stats_changes(effects: Dictionary) -> Array:
 	var changes: Array = []
+	var to_max_keys: Array = []
+	for marker in TO_MAX_KEYS:
+		if effects.has(marker) and effects[marker]:
+			var target: String = TO_MAX_KEYS[marker]
+			changes.append({"key": target, "to_max": true})
+			to_max_keys.append(target)
 	for stat_key in DIRECT_STATS:
-		if effects.has(stat_key):
+		if effects.has(stat_key) and not to_max_keys.has(stat_key):
 			changes.append({"key": stat_key, "delta": effects[stat_key]})
 	for stat_key in effects.get("stats", {}):
-		changes.append({"key": stat_key, "delta": effects["stats"][stat_key]})
+		if not to_max_keys.has(stat_key):
+			changes.append({"key": stat_key, "delta": effects["stats"][stat_key]})
 	return changes
 
 
@@ -314,6 +486,18 @@ func apply_effects(effects: Dictionary) -> void:
 	for stat_key in effects.get("stats", {}):
 		_apply_stat_delta(stat_key, effects["stats"][stat_key])
 		changed_stats = true
+
+	# 直接回满（睡觉等）：不写具体数字，顶到上限就行
+	for marker in TO_MAX_KEYS:
+		if effects.has(marker) and effects[marker]:
+			_apply_stat_to_max(TO_MAX_KEYS[marker])
+			changed_stats = true
+
+	# 时间推进：睡觉 / 长时间动作由数据控制
+	if effects.has("advance_hours"):
+		advance_time(int(effects["advance_hours"]))
+	if effects.get("sleep_until_morning", false):
+		sleep_until_morning()
 
 	# 夹紧上限
 	if state.stats.has("hp") and state.stats.has("max_hp"):
@@ -384,6 +568,65 @@ func _apply_stat_delta(stat_key: String, delta) -> void:
 		state.stats[stat_key] = clampi(int(new_val), 0, MAX_STAT)
 
 
+## 把某项属性直接顶到上限（回满）
+func _apply_stat_to_max(stat_key: String) -> void:
+	if not state.stats.has(stat_key):
+		return
+	if stat_key == "hp":
+		state.stats["hp"] = int(state.stats.get("max_hp", 100))
+	elif stat_key == "san":
+		state.stats["san"] = 100
+	else:
+		state.stats[stat_key] = MAX_STAT
+
+
+## ────────────────────────── 游戏内时间 ──────────────────────────
+
+## 推进 hours 小时，跨过 24 点就进到第二天
+func advance_time(hours: int) -> void:
+	if hours == 0:
+		return
+	state.game_time += hours
+	while state.game_time >= 24:
+		state.game_time -= 24
+		state.game_day += 1
+	time_changed.emit(state.game_day, state.game_time)
+
+
+## 睡到第二天早上 6 点（凌晨入睡就当当天早上）
+func sleep_until_morning() -> void:
+	if state.game_time >= 6:
+		state.game_day += 1
+	state.game_time = 6
+	time_changed.emit(state.game_day, state.game_time)
+
+
+## 现在能不能看到"几点几分"：身上有能看时间的物品，或当前房间里有钟表
+func has_timepiece() -> bool:
+	for item in inv_mgr.all():
+		if get_item_def(item.get("id", "")).get("shows_time", false):
+			return true
+	for slot in state.equipment:
+		var entry: Dictionary = state.equipment[slot]
+		if get_item_def(entry.get("item_id", "")).get("shows_time", false):
+			return true
+	return get_room(state.room_id).get("timepiece", false)
+
+
+## 顶部时间显示：有钟表就是"第 N 天 14:00"，否则只给"下午"这种大致判断
+func get_time_display() -> String:
+	if has_timepiece():
+		return "第 %d 天 %02d:00" % [state.game_day, state.game_time]
+	return "第 %d 天 %s" % [state.game_day, _time_of_day_name()]
+
+
+func _time_of_day_name() -> String:
+	for span in TIME_OF_DAY:
+		if state.game_time >= int(span[0]) and state.game_time <= int(span[1]):
+			return span[2]
+	return "夜里"
+
+
 func _has_task(task_id: String) -> bool:
 	for task in state.diary["tasks"]:
 		if task.get("id") == task_id:
@@ -408,7 +651,11 @@ func select_option(option: Dictionary) -> Dictionary:
 	if not next_dialogue.is_empty():
 		state.dialogue_id = next_dialogue
 	elif not next_room.is_empty():
+		var moved := next_room != state.room_id
 		state.room_id = next_room
+		# 真正换了房间才推进 1 小时；原地休息/睡觉交给 effects 里的时间字段
+		if moved:
+			advance_time(1)
 		# enter_dialogue：进入房间后自动触发的对话
 		var room_def: Dictionary = _rooms_db.get(next_room, {})
 		state.dialogue_id = room_def.get("enter_dialogue", "")
@@ -566,6 +813,124 @@ func sell_item(item_id: String, qty: int = 1) -> Dictionary:
 		"message": "出售了%s ×%d，获得 %d 枚铜币。" % [item_def.get("name", item_id), qty, earned],
 		"earned": earned,
 	}
+
+
+## ────────────────────────── 使用物品 ──────────────────────────
+
+## 使用一件消耗品：先查数据里的 effect，再判断"用了到底有没有变化"，
+## 最后才扣数量、套效果。血满了就不该白白浪费一瓶药。
+func use_item(item_id: String) -> Dictionary:
+	var item_def := get_item_def(item_id)
+	if item_def.is_empty():
+		return {"success": false, "message": "物品不存在。"}
+	var effect: Dictionary = item_def.get("effect", {})
+	if effect.is_empty():
+		return {"success": false, "message": "这东西现在用不了。"}
+	if not inv_mgr.has(item_id):
+		return {"success": false, "message": "背包里没有这件物品。"}
+	if not _effect_would_change(effect):
+		return {"success": false, "message": "现在不需要用它。"}
+
+	inv_mgr.remove(item_id, 1)
+	apply_effects(effect)
+	inventory_changed.emit()
+	return {"success": true, "message": "使用了「%s」。" % item_def.get("name", item_id)}
+
+
+## 这组效果在当前状态下会不会真的产生变化（用于拦住"满血嗑药"这种浪费）
+func _effect_would_change(effect: Dictionary) -> bool:
+	# 把顶层属性和 stats 里写的属性合并成一张表，再逐个看有没有实际增量
+	var merged: Dictionary = {}
+	for stat_key in DIRECT_STATS:
+		if effect.has(stat_key):
+			merged[stat_key] = int(effect[stat_key])
+	for stat_key in effect.get("stats", {}):
+		merged[stat_key] = merged.get(stat_key, 0) + int(effect["stats"][stat_key])
+
+	for stat_key in merged:
+		if not state.stats.has(stat_key):
+			continue
+		var current := int(state.stats[stat_key])
+		var cap := MAX_STAT
+		if stat_key == "hp":
+			cap = int(state.stats.get("max_hp", 9999))
+		elif stat_key == "san":
+			cap = 100
+		if clampi(current + int(merged[stat_key]), 0, cap) != current:
+			return true
+	return false
+
+
+## ────────────────────────── 地面物品 ──────────────────────────
+
+## 取某个房间地上的物品（默认当前房间）。每项都带上 ground=true 与下标，
+## 供物品栏的「地上」分区渲染与捡起。
+func get_ground_items(room_id: String = "") -> Array:
+	var rid: String = room_id if not room_id.is_empty() else state.room_id
+	var list: Array = state.ground.get(rid, [])
+	var result: Array = []
+	for i in range(list.size()):
+		var copy: Dictionary = list[i].duplicate()
+		copy["ground"] = true
+		copy["ground_index"] = i
+		result.append(copy)
+	return result
+
+
+## 把背包里的一件物品丢到当前房间的地上（同 id 会自动堆叠）
+func drop_to_ground(item: Dictionary) -> Dictionary:
+	var item_id: String = item.get("id", "")
+	if item_id.is_empty() or not inv_mgr.has(item_id):
+		return {"success": false, "message": "背包里没有这件物品。"}
+	if not inv_mgr.remove(item_id, 1):
+		return {"success": false, "message": "丢弃失败。"}
+
+	var rid := state.room_id
+	var list: Array = state.ground.get(rid, [])
+	var merged := false
+	for entry in list:
+		if entry.get("id") == item_id:
+			entry["qty"] = int(entry.get("qty", 1)) + 1
+			merged = true
+			break
+	if not merged:
+		list.append({
+			"id": item_id,
+			"name": item.get("name", item_id),
+			"desc": item.get("desc", ""),
+			"type": item.get("type", "misc"),
+			"qty": 1,
+		})
+	state.ground[rid] = list
+
+	inventory_changed.emit()
+	return {"success": true, "message": "丢弃了「%s」" % item.get("name", item_id)}
+
+
+## 从当前房间地上捡回第 index 条
+func pick_up_ground_item(index: int) -> Dictionary:
+	var rid := state.room_id
+	var list: Array = state.ground.get(rid, [])
+	if index < 0 or index >= list.size():
+		return {"success": false, "message": "这里没有这件东西。"}
+
+	var entry: Dictionary = list[index]
+	var item_id: String = entry.get("id", "")
+	inv_mgr.add(
+		item_id,
+		entry.get("name", item_id),
+		entry.get("desc", ""),
+		entry.get("type", "misc"),
+		int(entry.get("qty", 1))
+	)
+	list.remove_at(index)
+	if list.is_empty():
+		state.ground.erase(rid)
+	else:
+		state.ground[rid] = list
+
+	inventory_changed.emit()
+	return {"success": true, "message": "捡起了「%s」" % entry.get("name", item_id)}
 
 
 ## ────────────────────────── 存读档 ──────────────────────────

@@ -5,6 +5,7 @@ extends Control
 ## 不包含任何游戏规则——规则全在 scripts/core/ 里。
 
 const MODAL_SCENE := preload("res://scenes/Modal.tscn")
+const BATTLE_SCENE := preload("res://scenes/Battle.tscn")
 
 ## 属性中文名，与 Python 版 game_menu.py 的 STATS_NAMES 一致
 const STATS_NAMES: Dictionary = {
@@ -23,13 +24,14 @@ const STATS_NAMES: Dictionary = {
 @onready var _hp_bar: ProgressBar = $Root/Layout/StatusBar/StatusRow/StatsLeft/HpBar
 @onready var _san_label: Label = $Root/Layout/StatusBar/StatusRow/StatsLeft/SanLabel
 @onready var _san_bar: ProgressBar = $Root/Layout/StatusBar/StatusRow/StatsLeft/SanBar
-@onready var _location_label: Label = $Root/Layout/StatusBar/StatusRow/LocationCenter/LocationLabel
+@onready var _location_label: Label = $Root/Layout/LocationLabel
 @onready var _combat_label: Label = $Root/Layout/StatusBar/StatusRow/StatsRight/CombatLabel
 @onready var _mind_label: Label = $Root/Layout/StatusBar/StatusRow/StatsRight/MindLabel
 @onready var _corruption_label: Label = $Root/Layout/StatusBar/StatusRow/StatsRight/CorruptionLabel
 
 @onready var _story_text: RichTextLabel = $Root/Layout/MainViewport/StoryBox/StoryText
 @onready var _history_text: RichTextLabel = $Root/Layout/MainViewport/RightPanel/HistoryBox/HistoryText
+@onready var _tracked_panel: PanelContainer = $Root/Layout/MainViewport/RightPanel/TrackedTask
 @onready var _tracked_label: Label = $Root/Layout/MainViewport/RightPanel/TrackedTask/TrackedLabel
 
 @onready var _option_grid: GridContainer = $Root/Layout/BottomConsole/OptionGrid
@@ -40,10 +42,43 @@ const STATS_NAMES: Dictionary = {
 @onready var _btn_diary: Button = $Root/Layout/BottomConsole/SystemPanel/LeftButtons/BtnDiary
 @onready var _btn_shop: Button = $Root/Layout/BottomConsole/SystemPanel/RightButtons/BtnShop
 
+## 文字速度档位 → 每个字多少秒。取值与 Python 版 engine/effects.py 的
+## SPEED_PRESETS、以及 battle.gd 完全一致，战斗内外的手感才统一。
+const SPEED_PRESETS: Dictionary = {"instant": 0.0, "fast": 0.01, "medium": 0.03, "slow": 0.06}
+
 ## 当前画面上的选项（已按条件过滤、去掉了 excluded 项）
 var _compacted_options: Array = []
 ## 6 个选项按钮，按顺序对应 _compacted_options 的下标
 var _option_buttons: Array[Button] = []
+## 每个选项按钮里那个负责显示文字的子 Label。按钮本身 text 留空、
+## 由 Label 自动换行——否则长文本会把 Button 的最小宽度撑开，把整列挤变形。
+var _option_labels: Array[Label] = []
+
+## 本次正文是否还在逐字显示（此时点击 / 回车 = 快进）
+var _typing := false
+## 打字机代号：每次重开一段正文 +1，旧的那段 while 循环看到代号变了就退出，
+## 免得快速连点选项时两条打字动画互相抢 visible_ratio。
+var _type_gen := 0
+## 正在跑的打字补间。切房间时要先 kill 掉上一条，否则两条补间会抢同一个属性。
+var _type_tween: Tween = null
+## 当前正在打字的那份节点数据。快进时用它重建选项。
+var _current_node_data: Dictionary = {}
+
+## 血条上一帧的比例（-1 = 还没记录过）。首次刷新是"初始值"而不是掉血，
+## 不能画残影，所以用 -1 当哨兵。
+var _bar_prev: Dictionary = {}
+## 血条长度动画（按最大值伸缩），key 是 ProgressBar，切换最大值时先 kill 上一条
+var _bar_width_tweens: Dictionary = {}
+
+## 位置栏上次显示的文字：变了才做一次高亮，免得每次刷新正文都重播
+var _last_location_text := ""
+## 只记地点部分（不含时间），时间刷新时用它重拼整行
+var _location_place := ""
+
+## 日记按钮当前是否处于"有未读"状态（只在 0→1 的那一次提醒）
+var _diary_flash_on := false
+## 未读时的呼吸动画
+var _diary_flash_tween: Tween = null
 
 ## 弹窗栈：后进的在最上面。栈非空时主画面不响应键盘。
 var _modal_stack: Array[GameModal] = []
@@ -52,7 +87,13 @@ var _modal_stack: Array[GameModal] = []
 var _inv_modal: GameModal = null
 var _inv_list_box: VBoxContainer = null
 var _inv_detail: RichTextLabel = null
-var _inv_discard_btn: Button = null
+## 当前分区："bag"（背包+已装备）/ "ground"（本房间地上）
+var _inv_tab: String = "bag"
+var _inv_tab_btns: Array[Button] = []
+## 详情下方那一排动态操作按钮（装备/卸下、使用、丢弃、捡起）
+var _inv_actions: HBoxContainer = null
+## 操作反馈行：丢弃/使用/装备之后在这里给一句提示
+var _inv_status: Label = null
 var _inv_items: Array = []
 var _inv_selected: int = 0
 
@@ -77,19 +118,37 @@ var _diary_entries: Array = []
 var _diary_selected: int = 0
 var _diary_track_btn: Button = null
 var _diary_delete_btn: Button = null
-## 未读时日记按钮的闪烁动画
-var _diary_flash_tween: Tween = null
 
 ## 商店 / 日记界面的强调色（沿用弹窗那套配色）
-const ACCENT_SHOP := Color(1, 0.666667, 0)            # #ffaa00 金（商店）
-const ACCENT_DIARY := Color(0.901961, 0.721569, 0)    # #e6b800 黄（日记）
+const ACCENT_SHOP := Palette.GOLD                     # #ffaa00 金（商店）
+const ACCENT_DIARY := Palette.AMBER                   # #e6b800 黄（日记）
+
+## 血条 / 理智条的填充样式（运行时按比例改颜色）
+var _hp_fill: StyleBoxFlat = null
+var _san_fill: StyleBoxFlat = null
 
 
 func _ready() -> void:
+	# 选项按钮：text 留空，内嵌一个会自动换行的 Label 来显示文字。
+	# Button 不是容器，子节点不参与它的最小尺寸计算，所以长文本不会再撑宽按钮。
 	for child in _option_grid.get_children():
 		if child is Button:
+			var index := _option_buttons.size()
 			_option_buttons.append(child)
-			child.pressed.connect(_on_option_pressed.bind(_option_buttons.size() - 1))
+			var label := Label.new()
+			label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			child.add_child(label)
+			# 铺满按钮：Button 不是容器，不会自动给子节点排版
+			label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			_option_labels.append(label)
+			child.text = ""
+			child.pressed.connect(_on_option_pressed.bind(index))
+			# 悬停时把文字换成深色（按钮底色会变成青色），禁用时用灰色
+			child.mouse_entered.connect(_on_option_hover.bind(index, true))
+			child.mouse_exited.connect(_on_option_hover.bind(index, false))
 
 	_btn_profile.pressed.connect(_open_profile)
 	_btn_inventory.pressed.connect(_open_inventory)
@@ -97,17 +156,92 @@ func _ready() -> void:
 	_btn_settings.pressed.connect(_open_settings)
 	_btn_diary.pressed.connect(_open_diary)
 	_btn_shop.pressed.connect(_open_room_shop)
+	_style_system_buttons()
+	# 背包有新东西（购买 / 掉落 / 剧情奖励）就让"物品"按钮被注意到
+	GameEngine.inv_mgr.item_added.connect(_on_item_added)
+
+	# 把血条填充样式取成独立实例，之后就能按血量实时改颜色
+	_hp_fill = _hp_bar.get_theme_stylebox("fill").duplicate() as StyleBoxFlat
+	_hp_bar.add_theme_stylebox_override("fill", _hp_fill)
+	_san_fill = _san_bar.get_theme_stylebox("fill").duplicate() as StyleBoxFlat
+	_san_bar.add_theme_stylebox_override("fill", _san_fill)
 
 	GameEngine.stats_changed.connect(_refresh_status_bar)
 	GameEngine.game_loaded.connect(load_current_room)
+	GameEngine.time_changed.connect(_on_time_changed)
 
+	# 背景氛围粒子：插在底色块之后、内容之前，粒子才会在"后面"
+	var particles := Fx.add_ambient(self, Color(0.27, 0.95, 1.0, 0.10), 30)
+	move_child(particles, 1)
+
+	# 点击 = 快进：把装饰性容器全部放行，点击才会落到本节点的 _gui_input。
+	# Button 保持 STOP（它们要能点中），其余 Control 一律 IGNORE。
+	_make_passive($Bg)
+	_make_passive($Root)
+
+	# 清掉场景里可能残留的占位文本：历史记录只该显示真正发生过的剧情，
+	# 否则开场会看见一堆从没发生过的句子。
+	_history_text.text = ""
 	load_current_room()
+	Fx.stagger(_option_buttons, 0.035, 0.22)
+
+
+## 给系统按钮补上 hover / pressed / focus 三种状态。
+## 场景里这几个按钮只写了 normal，一旦鼠标悬停就会掉回 Godot 内置主题的灰底，
+## 和整套终端青配色对不上；补齐之后就与选项按钮的表现一致了。
+## 悬停时底色变青，所以文字要跟着压成深色，否则糊在一起。
+func _style_system_buttons() -> void:
+	for button in [_btn_profile, _btn_inventory, _btn_save, _btn_settings, _btn_diary, _btn_shop]:
+		var normal := button.get_theme_stylebox("normal").duplicate() as StyleBoxFlat
+
+		var accent := StyleBoxFlat.new()
+		accent.bg_color = Palette.CYAN
+		accent.set_corner_radius_all(3)
+		accent.content_margin_left = 8.0
+		accent.content_margin_right = 8.0
+		accent.content_margin_top = 4.0
+		accent.content_margin_bottom = 4.0
+
+		button.add_theme_stylebox_override("hover", accent)
+		button.add_theme_stylebox_override("pressed", accent)
+		button.add_theme_stylebox_override("focus", normal)
+		button.add_theme_color_override("font_hover_color", Palette.BG)
+		button.add_theme_color_override("font_pressed_color", Palette.BG)
+
+
+## 递归把装饰性 Control 放行，让空白处的点击继续上传到本节点。
+##   Button → 保持 STOP（要能点中）
+##   RichTextLabel → PASS（滚轮还能翻正文/历史，不处理左键时再上传）
+##   其余 → IGNORE（纯装饰，不吃任何鼠标事件）
+func _make_passive(node: Node) -> void:
+	if node is Button:
+		return
+	if node is RichTextLabel:
+		(node as RichTextLabel).mouse_filter = Control.MOUSE_FILTER_PASS
+	elif node is Control:
+		(node as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for child in node.get_children():
+		_make_passive(child)
+
+
+## 点到空白处 = 回车（快速跳过打字机）
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		accept_event()
+		_skip_typing()
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not _modal_stack.is_empty():
 		return
 	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+
+	# 正在逐字显示时，回车 / 空格 = 快进（与点击空白等价）
+	if event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
+		if _typing:
+			accept_event()
+			_skip_typing()
 		return
 
 	# 系统界面快捷键（与原 Python 版 BINDINGS 一致）
@@ -174,6 +308,7 @@ func load_current_room() -> void:
 		is_dialogue = false
 
 	if node_data.is_empty():
+		_cancel_typing()
 		_story_text.text = "[错误] 数据不存在 (Room: %s, Dialogue: %s)" % [room_id, dialogue_id]
 		_set_options_pending()
 		return
@@ -181,9 +316,9 @@ func load_current_room() -> void:
 	if is_dialogue:
 		var room_data: Dictionary = GameEngine.get_room(room_id)
 		var place: String = room_data.get("title", room_id) if not room_data.is_empty() else "未知地点"
-		_location_label.text = "位置：%s (对话中)" % place
+		_set_location("位置：%s (对话中)" % place)
 	else:
-		_location_label.text = "位置：%s" % node_data.get("title", room_id)
+		_set_location("位置：%s" % node_data.get("title", room_id))
 
 	_set_options_pending()
 
@@ -196,17 +331,100 @@ func load_current_room() -> void:
 		else:
 			full_text = "【 %s 】\n\n%s" % [speaker, dialogue_text]
 			_append_history("[color=#66fcf1][b]【 %s 】[/b][/color]" % speaker)
-			_append_history(TextFormat.render(dialogue_text))
+			_append_history(Palette.render(dialogue_text))
 	else:
 		var title: String = node_data.get("title", room_id)
 		var story_text: String = GameEngine.resolve_room_description(node_data)
 		full_text = "【 %s 】\n\n%s" % [title, story_text]
 		_append_history("\n[color=#ffffff][b]【 %s 】[/b][/color]" % title)
-		_append_history(TextFormat.render(story_text))
+		_append_history(Palette.render(story_text))
 
-	# 本期直接显示全文；打字机逐字效果留到视觉打磨阶段接
-	_story_text.text = TextFormat.render(full_text)
+	# 打字机逐字显示，打完再把选项亮出来——和 Python 版
+	# （text_type 完成后才 refresh_options）保持一致
+	_type_story(full_text, node_data)
+
+
+## 更新顶部位置栏（地点 + 时间）。文字真的变了才做一次弹入高亮，免得每次刷新正文都重播。
+func _set_location(text: String) -> void:
+	_location_place = text
+	var full := "%s　·　%s" % [text, GameEngine.get_time_display()]
+	if full == _last_location_text:
+		return
+	_last_location_text = full
+	_location_label.text = full
+	_location_label.modulate.a = 1.0
+	Fx.pop_in(_location_label, 0.0, 0.45)
+
+
+## 时间变了（换房间/睡觉）先把顶栏文字改掉，不做弹入动画，
+## 免得紧接着的 load_current_room 又弹一次、看起来闪两下
+func _on_time_changed(_day: int, _hour: int) -> void:
+	if _location_place.is_empty():
+		return
+	var full := "%s　·　%s" % [_location_place, GameEngine.get_time_display()]
+	if full == _last_location_text:
+		return
+	_last_location_text = full
+	_location_label.text = full
+
+
+## 打字机：按设置里的文字速度逐字显示 full_text，显示完再重建选项。
+## 点空白 / 回车会调 _skip_typing() 直接把整段放出来。
+func _type_story(full_text: String, node_data: Dictionary) -> void:
+	_cancel_typing()
+	_type_gen += 1
+	var gen := _type_gen
+	_current_node_data = node_data
+
+	_story_text.text = Palette.render(full_text)
+	_story_text.visible_ratio = 0.0
+
+	var speed := _typing_speed()
+	if speed <= 0.0:
+		_story_text.visible_ratio = 1.0
+		_rebuild_options(node_data)
+		return
+
+	_typing = true
+	# 用"真实可见字数"算时长，BBCode 标签不计入，长短句不会忽快忽慢
+	var count := maxi(1, _story_text.get_total_character_count())
+	_type_tween = create_tween()
+	_type_tween.tween_property(_story_text, "visible_ratio", 1.0, maxf(0.15, speed * float(count)))
+
+	# 每帧检查：打完了 / 被快进（_typing=false） / 被下一段正文顶掉（代号变了）
+	while _typing and gen == _type_gen and _story_text.visible_ratio < 1.0:
+		await get_tree().process_frame
+	if gen != _type_gen or not is_instance_valid(_story_text):
+		return   # 已经被下一段正文取代，收尾交给新的那一轮
+
+	_cancel_typing()
+	_story_text.visible_ratio = 1.0
 	_rebuild_options(node_data)
+
+
+## 点空白 / 回车 = 立刻把本段正文全部显示出来，并把选项亮出来
+func _skip_typing() -> void:
+	if not _typing:
+		return
+	_cancel_typing()
+	_story_text.visible_ratio = 1.0
+	_rebuild_options(_current_node_data)
+
+
+## 打断当前这段打字（不刷新选项）。
+## 会 kill 掉补间——不 kill 的话它还会继续把 visible_ratio 从当前值推向 1.0，
+## 和"立刻显示全文"打架；同时把代号 +1，让还在跑的协程认定自己已过期。
+func _cancel_typing() -> void:
+	_typing = false
+	_type_gen += 1
+	if _type_tween != null and _type_tween.is_valid():
+		_type_tween.kill()
+	_type_tween = null
+
+
+## 文字速度设置 → 每个字多少秒（0 表示瞬间显示全文）
+func _typing_speed() -> float:
+	return SPEED_PRESETS.get(str(GameEngine.settings.get("text_speed", "medium")), 0.03)
 
 
 func _refresh_status_bar() -> void:
@@ -215,30 +433,78 @@ func _refresh_status_bar() -> void:
 	var hp := int(stats.get("hp", 0))
 	var max_hp := maxi(1, int(stats.get("max_hp", 100)))
 	_hp_label.text = "HP: %d/%d" % [hp, max_hp]
-	_hp_bar.max_value = max_hp
-	_hp_bar.value = hp
+	_set_bar(_hp_bar, _hp_fill, hp, max_hp)
 
 	var san := int(stats.get("san", 0))
 	_san_label.text = "SAN: %d/100" % san
-	_san_bar.max_value = 100
-	_san_bar.value = san
+	_set_bar(_san_bar, _san_fill, san, 100)
 
 	_combat_label.text = "ATK: %d   DEF: %d" % [int(stats.get("attack", 0)), int(stats.get("defense", 0))]
 	_mind_label.text = "INT: %d   AGI: %d" % [int(stats.get("intelligence", 0)), int(stats.get("agility", 0))]
 	_corruption_label.text = "COR: %d%%" % int(stats.get("corruption", 0))
 
 
+## 血条/理智条：设值 + 按比例取色（高=青、中=琥珀、低=红，与 Python 版一致）。
+## 掉血时叠一层"虚血"残影，让条不是一步跳到新值。
+##
+## 首次刷新只能当作"初始值"（_bar_prev 里没记录过），否则场景预置的占位数值
+## 会被当成掉血，一进游戏先白白流一截残影。
+func _set_bar(bar: ProgressBar, fill: StyleBoxFlat, value: int, max_value: int) -> void:
+	var new_ratio := float(value) / float(maxi(1, max_value))
+	var prev: float = _bar_prev.get(bar, -1.0)
+
+	bar.max_value = max_value
+	bar.value = value
+	fill.bg_color = Palette.bar_color(new_ratio)
+	_sync_bar_width(bar, max_value)
+
+	if prev >= 0.0:
+		Fx.ghost_drain(bar, prev, new_ratio)
+	_bar_prev[bar] = new_ratio
+
+
+## 血条长度跟着"最大值"走：最大生命/理智越大，条越长，但到上限就不再长。
+##
+## 为什么要有上限：上限是给成长留的余量，同时保证两张条永远不会长到把
+## 状态栏顶破；到顶之后只靠数值增长来体现成长。
+## 场景里初始就写成 120（= 100 点最大值对应的长度），所以进游戏不会先跳一下。
+## 数值整体收短了一档：状态栏里两张条原来偏长，压住了旁边的属性文字。
+const BAR_WIDTH_MIN := 70.0     ## 最短（最大值 ≤ 0 时的兜底）
+const BAR_WIDTH_PER_POINT := 0.5  ## 每 1 点最大值加多少像素
+const BAR_WIDTH_MAX := 200.0    ## 长度上限：再涨也不加长了
+
+func _sync_bar_width(bar: ProgressBar, max_value: int) -> void:
+	var target := clampf(BAR_WIDTH_MIN + float(max_value) * BAR_WIDTH_PER_POINT,
+		BAR_WIDTH_MIN, BAR_WIDTH_MAX)
+	if is_equal_approx(bar.custom_minimum_size.x, target):
+		return
+	var tween: Tween = _bar_width_tweens.get(bar)
+	if tween != null and tween.is_valid():
+		tween.kill()
+	tween = bar.create_tween()
+	tween.tween_property(bar, "custom_minimum_size:x", target, 0.5) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_bar_width_tweens[bar] = tween
+
+
 func _refresh_tracked_task() -> void:
 	var tracked_id: String = GameEngine.get_flag("sys_tracked_task_id", "")
 	if tracked_id.is_empty():
-		_tracked_label.text = "追踪任务：无"
+		_set_tracked("追踪任务：无", false)
 		return
 	for task in GameEngine.state.diary.get("tasks", []):
 		if task.get("id") == tracked_id:
 			var prefix := "✓ " if task.get("done", false) else ""
-			_tracked_label.text = "追踪任务：%s%s" % [prefix, task.get("title", "???")]
+			_set_tracked("追踪任务：%s%s" % [prefix, task.get("title", "???")], true)
 			return
-	_tracked_label.text = "追踪任务：无"
+	_set_tracked("追踪任务：无", false)
+
+
+## 有追踪任务时面板保持金色边框的原样；没有时整块压暗。
+## 右边常驻一个空的金框太抢眼，压暗之后它退成背景，有任务了再亮回来。
+func _set_tracked(text: String, active: bool) -> void:
+	_tracked_label.text = text
+	_tracked_panel.modulate = Color.WHITE if active else Color(1, 1, 1, 0.45)
 
 
 func _append_history(bbcode: String) -> void:
@@ -251,8 +517,8 @@ func _append_history(bbcode: String) -> void:
 func _set_options_pending() -> void:
 	_compacted_options = []
 	for i in range(_option_buttons.size()):
-		_option_buttons[i].text = "[·] 聆听常识流动中..."
 		_option_buttons[i].disabled = true
+		_set_option_text(i, "[·] 聆听常识流动中...")
 
 
 func _rebuild_options(node_data: Dictionary) -> void:
@@ -261,11 +527,39 @@ func _rebuild_options(node_data: Dictionary) -> void:
 		var button := _option_buttons[i]
 		if i < _compacted_options.size():
 			var entry: Dictionary = _compacted_options[i]
-			button.text = "[%d] %s" % [i + 1, entry["text"]]
+			# 先定 disabled 再写文字：文字颜色取决于禁用状态，顺序反了会取错色
 			button.disabled = entry["disabled"]
+			_set_option_text(i, "[%d] %s" % [i + 1, entry["text"]])
 		else:
-			button.text = "[%d] ---" % [i + 1]
 			button.disabled = true
+			_set_option_text(i, "[%d] ---" % [i + 1])
+
+
+## 选项按钮上的文字统一走这里：写到内嵌 Label，并同步它的颜色。
+## 悬停/禁用时 Label 颜色要跟着按钮底色变，否则文字会糊在一起。
+func _set_option_text(index: int, text: String) -> void:
+	if index < 0 or index >= _option_labels.size():
+		return
+	_option_labels[index].text = text
+	_apply_option_color(index, _option_buttons[index].is_hovered())
+
+
+func _on_option_hover(index: int, entered: bool) -> void:
+	_apply_option_color(index, entered)
+
+
+## 按"是否悬停 / 是否禁用"给选项文字取色
+func _apply_option_color(index: int, hovered: bool) -> void:
+	if index < 0 or index >= _option_labels.size():
+		return
+	var label := _option_labels[index]
+	var button := _option_buttons[index]
+	if button.disabled:
+		label.add_theme_color_override("font_color", Palette.DISABLED_FG)
+	elif hovered:
+		label.add_theme_color_override("font_color", Palette.BG)
+	else:
+		label.add_theme_color_override("font_color", Palette.CYAN)
 
 
 ## 按条件过滤选项：excluded 整条丢掉，hidden 且写了 hidden_text 的灰显占位。
@@ -312,15 +606,17 @@ func _select_option(index: int) -> void:
 	_append_history("\n[color=#ffffff][b]【你】[/b][/color][color=#66fcf1]「%s」[/color]" % option.get("text", ""))
 	_append_stat_changes(result.get("effects_applied", {}))
 
+	# 战斗：盖一层战斗界面，打完再刷新房间（对应 Python 版 select_option 的顺序）
+	var battle_id := str(option.get("battle", ""))
+	if not battle_id.is_empty():
+		_open_battle(battle_id, option.get("post_battle", {}))
+		return
+
 	# 商店交易：打开交易界面，不刷新房间（与原版一致，交易完仍停在原画面）
 	var shop_id := str(option.get("shop", ""))
 	if not shop_id.is_empty():
 		_open_shop(shop_id)
 		return
-
-	# 战斗系统尚未移植，遇到就先提示并停在原地
-	if option.has("battle"):
-		_append_history("[color=#ffaa00]（战斗系统尚未移植，本次遭遇被跳过）[/color]")
 
 	load_current_room()
 
@@ -329,7 +625,7 @@ func _select_option(index: int) -> void:
 func _check_game_over() -> bool:
 	if int(GameEngine.state.stats.get("hp", 1)) > 0:
 		return false
-	get_tree().change_scene_to_file("res://scenes/GameOver.tscn")
+	Fx.goto("res://scenes/GameOver.tscn")
 	return true
 
 
@@ -341,8 +637,12 @@ func _append_stat_changes(effects: Dictionary) -> void:
 	var parts: Array = []
 	for change in changes:
 		var key: String = change["key"]
-		var delta := int(change["delta"])
 		var stat_name: String = STATS_NAMES.get(key, key)
+		# "直接回满"（如睡觉）不报数字，避免出现 +999 这种出戏的提示
+		if change.get("to_max", false):
+			parts.append("[color=#00ff88]%s 已回满[/color]" % stat_name)
+			continue
+		var delta := int(change["delta"])
 		var sign_str := "+" if delta > 0 else ""
 		# 腐化是越高越糟，颜色与其他属性相反
 		var positive_is_good := key != "corruption"
@@ -350,6 +650,30 @@ func _append_stat_changes(effects: Dictionary) -> void:
 		parts.append("[color=%s]%s %s%d[/color]" % [color, stat_name, sign_str, delta])
 
 	_append_history("✦ 状态变更: %s" % ", ".join(parts))
+
+
+## ────────────────────────── 战斗 ──────────────────────────
+
+## 盖一层战斗界面。战斗期间把本画面的快捷键关掉，避免 1~6 透传到选项上。
+func _open_battle(enemy_id: String, post_battle: Dictionary) -> void:
+	for child in get_children():
+		if child is BattleScene:
+			return   # 已经在战斗中，别叠第二层
+
+	set_process_unhandled_key_input(false)
+	get_viewport().gui_release_focus()
+
+	var battle := BATTLE_SCENE.instantiate() as BattleScene
+	battle.finished.connect(_on_battle_finished)
+	add_child(battle)
+	battle.setup(enemy_id, post_battle)
+
+
+## 战斗结束（胜利 / 逃跑 / 战败）后恢复快捷键并刷新房间。
+## 战败时 load_current_room → _check_game_over 会自己切到结局画面。
+func _on_battle_finished() -> void:
+	set_process_unhandled_key_input(true)
+	load_current_room()
 
 
 ## ────────────────────────── 弹窗基础设施 ──────────────────────────
@@ -386,7 +710,9 @@ func _on_modal_closed(modal: GameModal) -> void:
 		_inv_modal = null
 		_inv_list_box = null
 		_inv_detail = null
-		_inv_discard_btn = null
+		_inv_actions = null
+		_inv_status = null
+		_inv_tab_btns = []
 	if modal == _shop_modal:
 		_shop_modal = null
 		_shop_list_box = null
@@ -452,50 +778,86 @@ func _open_profile() -> void:
 
 ## ────────────────────────── 物品栏 ──────────────────────────
 
+## 让 ScrollContainer 里的内容不吞滚轮事件。
+## 容器和按钮默认是 STOP，滚轮会被它们吃掉，列表就滚不动了；统一改成 PASS，
+## 事件会继续上传到 ScrollContainer 去滚动。按钮用 PASS 仍然能正常点击。
+func _make_scroll_friendly(node: Node) -> void:
+	for child in node.get_children():
+		if child is Control:
+			(child as Control).mouse_filter = Control.MOUSE_FILTER_PASS
+		_make_scroll_friendly(child)
+
+
+## 建一个纵向可滚动的列表容器，返回 (scroll, 内部的 VBox)
+## 详见 _make_scroll_friendly 的注释：里面每一项都要 PASS，滚轮才传得出去。
+func _make_list_scroll(size: Vector2) -> Array:
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = size
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var box := VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.mouse_filter = Control.MOUSE_FILTER_PASS
+	scroll.add_child(box)
+	return [scroll, box]
+
+
 func _open_inventory() -> void:
-	var modal := _make_modal("物品栏", GameModal.ACCENT_CYAN, 760.0, 340.0)
+	var modal := _make_modal("物品栏", GameModal.ACCENT_CYAN, 780.0, 380.0)
 	_inv_modal = modal
 	_inv_selected = 0
+	_inv_tab = "bag"
+
+	# 顶部分区切换：背包（含已装备）/ 地上（本房间丢下的东西）
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 8)
+	_inv_tab_btns = []
+	for entry in [["bag", "背包"], ["ground", "地上"]]:
+		var tab_btn := Button.new()
+		tab_btn.custom_minimum_size = Vector2(140, 30)
+		tab_btn.pressed.connect(_switch_inv_tab.bind(entry[0]))
+		tabs.add_child(tab_btn)
+		_inv_tab_btns.append(tab_btn)
+	modal.add_node(tabs)
 
 	var main := HBoxContainer.new()
 	main.add_theme_constant_override("separation", 12)
 	main.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	# 左：物品列表（可滚动）
-	var list_scroll := ScrollContainer.new()
-	list_scroll.custom_minimum_size = Vector2(260, 300)
-	list_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	list_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_inv_list_box = VBoxContainer.new()
-	_inv_list_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list_scroll.add_child(_inv_list_box)
-	main.add_child(list_scroll)
+	var scroll_pair := _make_list_scroll(Vector2(260, 280))
+	main.add_child(scroll_pair[0])
+	_inv_list_box = scroll_pair[1]
 
-	# 右：详情 + 操作
+	# 右：详情 + 操作按钮 + 反馈
 	var right := VBoxContainer.new()
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.add_theme_constant_override("separation", 8)
 
 	_inv_detail = RichTextLabel.new()
 	_inv_detail.bbcode_enabled = true
-	_inv_detail.scroll_active = false
+	_inv_detail.scroll_active = true
 	_inv_detail.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_inv_detail.add_theme_color_override("default_color", GameModal.BODY_TEXT)
 	right.add_child(_inv_detail)
 
-	_inv_discard_btn = Button.new()
-	_inv_discard_btn.text = "丢弃"
-	_inv_discard_btn.custom_minimum_size = Vector2(0, 34)
-	_inv_discard_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_inv_discard_btn.disabled = true
-	modal.style_button(_inv_discard_btn, Color(1, 0.333333, 0.333333))
-	_inv_discard_btn.pressed.connect(_discard_selected_item)
-	right.add_child(_inv_discard_btn)
+	# 操作按钮排成一行：按选中物品的类型动态显示（装备/卸下、使用、丢弃、捡起）
+	_inv_actions = HBoxContainer.new()
+	_inv_actions.add_theme_constant_override("separation", 8)
+	right.add_child(_inv_actions)
+
+	_inv_status = Label.new()
+	_inv_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_inv_status.add_theme_color_override("font_color", GameModal.MUTED)
+	right.add_child(_inv_status)
 
 	main.add_child(right)
 	modal.add_node(main)
 
 	modal.add_text("铜币: %d" % int(GameEngine.state.stats.get("coins", 0)), GameModal.ACCENT_GOLD)
+	modal.add_text("提示：点左侧物品，再用右侧按钮操作；丢弃的东西会掉在地上，切到「地上」可以捡回。",
+		GameModal.MUTED)
 	modal.add_action("close", "[ESC] 关闭")
 	modal.action_pressed.connect(func(id: String) -> void:
 		if id == "close":
@@ -506,8 +868,55 @@ func _open_inventory() -> void:
 	_push_modal(modal)
 
 
+## 切换「背包 / 地上」分区
+func _switch_inv_tab(tab: String) -> void:
+	if _inv_tab == tab:
+		return
+	_inv_tab = tab
+	_inv_selected = 0
+	_set_inv_status("", true)
+	_refresh_inventory()
+
+
+## 主界面上的提示行：成功用绿色、失败用红色
+func _set_inv_status(message: String, ok: bool = true) -> void:
+	if _inv_status == null:
+		return
+	_inv_status.text = message
+	_inv_status.add_theme_color_override(
+		"font_color", Palette.GREEN if ok else Palette.RED)
+
+
+## 背包分区的条目：先列已装备的（方便快捷卸下），再列背包里的
+func _bag_entries() -> Array:
+	var result: Array = []
+	var equipment := GameEngine.get_equipment()
+	for slot in equipment:
+		var entry: Dictionary = equipment[slot]
+		var item_def := GameEngine.get_item_def(entry.get("item_id", ""))
+		result.append({
+			"id": entry.get("item_id", ""),
+			"name": entry.get("name", ""),
+			"desc": item_def.get("desc", ""),
+			"type": item_def.get("type", "misc"),
+			"qty": 1,
+			"equipped": true,
+			"slot": slot,
+		})
+	for item in GameEngine.inv_mgr.all():
+		var copy: Dictionary = item.duplicate(true)
+		copy["equipped"] = false
+		result.append(copy)
+	return result
+
+
 func _refresh_inventory() -> void:
-	_inv_items = GameEngine.inv_mgr.all()
+	if _inv_tab == "ground":
+		_inv_items = GameEngine.get_ground_items()
+	else:
+		_inv_items = _bag_entries()
+
+	_refresh_inv_tabs()
 
 	for child in _inv_list_box.get_children():
 		_inv_list_box.remove_child(child)
@@ -515,18 +924,23 @@ func _refresh_inventory() -> void:
 
 	if _inv_items.is_empty():
 		var empty := Label.new()
-		empty.text = "（背包空空如也）"
+		empty.text = "（地上空空的）" if _inv_tab == "ground" else "（背包空空如也）"
 		empty.add_theme_color_override("font_color", GameModal.MUTED)
 		_inv_list_box.add_child(empty)
 		_inv_detail.text = ""
-		_inv_discard_btn.disabled = true
+		_clear_inv_actions()
 		return
 
 	for i in range(_inv_items.size()):
 		var item: Dictionary = _inv_items[i]
 		var qty := int(item.get("qty", 1))
+		var label: String = str(item.get("name", "???"))
+		if item.get("equipped", false):
+			label += "【已装备】"
+		elif qty > 1:
+			label += " x%d" % qty
 		var btn := Button.new()
-		btn.text = "%s x%d" % [item.get("name", "???"), qty] if qty > 1 else str(item.get("name", "???"))
+		btn.text = label
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		btn.custom_minimum_size = Vector2(0, 30)
 		_inv_modal.style_button(btn, GameModal.ACCENT_CYAN)
@@ -537,10 +951,26 @@ func _refresh_inventory() -> void:
 
 	_inv_selected = clampi(_inv_selected, 0, _inv_items.size() - 1)
 	_show_inventory_detail(_inv_selected)
+	_make_scroll_friendly(_inv_list_box)   # 列表项要 PASS，滚轮才滚得动
+
+
+## 分区按钮的选中态：当前分区用青色实底，另一个保持暗底
+func _refresh_inv_tabs() -> void:
+	var counts := {"bag": _bag_count_hint(), "ground": GameEngine.get_ground_items().size()}
+	for i in range(_inv_tab_btns.size()):
+		var tab_id: String = ["bag", "ground"][i]
+		var btn := _inv_tab_btns[i]
+		btn.text = ("背包" if tab_id == "bag" else "地上") + "（%d）" % int(counts[tab_id])
+		_inv_modal.style_button(btn, GameModal.ACCENT_CYAN if tab_id == _inv_tab else GameModal.MUTED)
+
+
+func _bag_count_hint() -> int:
+	return GameEngine.inv_mgr.all().size() + GameEngine.get_equipment().size()
 
 
 func _select_inventory_item(index: int) -> void:
 	_inv_selected = index
+	_set_inv_status("", true)   # 换一件物品就清掉上一条操作提示
 	for i in range(_inv_list_box.get_child_count()):
 		var child := _inv_list_box.get_child(i)
 		if child is Button:
@@ -553,26 +983,116 @@ func _show_inventory_detail(index: int) -> void:
 	if index < 0 or index >= _inv_items.size():
 		return
 	var item: Dictionary = _inv_items[index]
-	var is_important: bool = item.get("type") == "quest" or item.get("type") == "key" or item.get("is_important", false)
-	_inv_detail.text = "\n".join([
+	var lines: Array = [
 		"[b][color=#66fcf1]%s[/color][/b]" % item.get("name", "???"),
 		"[color=#ffaa00]类型: %s[/color]" % GameEngine.inv_mgr.type_name(item.get("type", "misc")),
 		"[color=#ffaa00]数量: %d[/color]" % int(item.get("qty", 1)),
-		"",
-		"[color=#b2b2b2]%s[/color]" % item.get("desc", "(无描述)"),
-	])
+	]
+	if item.get("equipped", false):
+		lines.append("[color=#ddaa00]状态: 已装备[/color]")
+	lines.append("")
+	lines.append("[color=#b2b2b2]%s[/color]" % item.get("desc", "(无描述)"))
+	_inv_detail.text = "\n".join(lines)
+
+	_rebuild_inv_actions(item, index)
+
+
+## 按选中物品的类型，重建这一排可用操作。可用什么就显示什么，避免出现灰按钮。
+func _rebuild_inv_actions(item: Dictionary, index: int) -> void:
+	_clear_inv_actions()
+
+	# 地上的东西：只有一个动作，捡回来
+	if item.get("ground", false):
+		_add_inv_action("捡起", GameModal.ACCENT_GREEN,
+			func() -> void: _pick_up_ground(index))
+		return
+
+	# 已装备的：只能卸下
+	if item.get("equipped", false):
+		_add_inv_action("卸下", GameModal.ACCENT_AMBER,
+			func() -> void: _unequip_from_inv(str(item.get("slot", ""))))
+		return
+
+	var item_id: String = str(item.get("id", ""))
+	var item_def := GameEngine.get_item_def(item_id)
+	if item_def.has("equip_slot"):
+		_add_inv_action("装备", GameModal.ACCENT_AMBER,
+			func() -> void: _equip_from_inv(item_id))
+	if not item_def.get("effect", {}).is_empty():
+		_add_inv_action("使用", GameModal.ACCENT_GREEN,
+			func() -> void: _use_from_inv(item_id))
 	# 任务物品与钥匙不可丢弃（与原 Python 版一致）
-	_inv_discard_btn.disabled = is_important
-	_inv_discard_btn.text = "丢弃（重要物品）" if is_important else "丢弃"
+	var is_important: bool = item.get("type") == "quest" or item.get("type") == "key" \
+		or item.get("is_important", false)
+	if not is_important:
+		_add_inv_action("丢弃", Palette.RED,
+			func() -> void: _discard_selected_item())
+	elif _inv_status.text.is_empty():
+		# 重要物品没有任何可用操作，给一句中性说明（不覆盖刚发生的操作反馈）
+		_inv_status.text = "重要物品不能丢弃。"
+		_inv_status.add_theme_color_override("font_color", GameModal.MUTED)
 
 
+func _add_inv_action(label: String, accent: Color, on_pressed: Callable) -> void:
+	var btn := Button.new()
+	btn.text = label
+	btn.custom_minimum_size = Vector2(0, 34)
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_inv_modal.style_button(btn, accent)
+	btn.pressed.connect(on_pressed)
+	_inv_actions.add_child(btn)
+
+
+func _clear_inv_actions() -> void:
+	if _inv_actions == null:
+		return
+	for child in _inv_actions.get_children():
+		_inv_actions.remove_child(child)
+		child.queue_free()
+
+
+## 在物品栏里直接装备（成功后该物品会移到「已装备」区）
+func _equip_from_inv(item_id: String) -> void:
+	var result := GameEngine.equip(item_id)
+	_set_inv_status(str(result.get("message", "")), result.get("success", false))
+	_refresh_inventory()
+
+
+## 在物品栏里直接卸下
+func _unequip_from_inv(slot: String) -> void:
+	var result := GameEngine.unequip(slot)
+	_set_inv_status(str(result.get("message", "")), result.get("success", false))
+	_refresh_inventory()
+
+
+## 在物品栏里使用消耗品
+func _use_from_inv(item_id: String) -> void:
+	var result := GameEngine.use_item(item_id)
+	_set_inv_status(str(result.get("message", "")), result.get("success", false))
+	_refresh_inventory()
+
+
+## 从地上捡回
+func _pick_up_ground(index: int) -> void:
+	var result := GameEngine.pick_up_ground_item(index)
+	_set_inv_status(str(result.get("message", "")), result.get("success", false))
+	_refresh_inventory()
+
+
+## 丢弃：不是删除，而是掉到当前房间的地上，之后还能在「地上」分区捡回来
 func _discard_selected_item() -> void:
-	if _inv_selected < 0 or _inv_selected >= _inv_items.size():
+	if _inv_tab != "bag" or _inv_selected < 0 or _inv_selected >= _inv_items.size():
 		return
 	var item: Dictionary = _inv_items[_inv_selected]
-	if GameEngine.inv_mgr.remove(item.get("id", ""), 1):
-		GameEngine.inventory_changed.emit()
-		_refresh_inventory()
+	if item.get("equipped", false):
+		return
+	var result := GameEngine.drop_to_ground(item)
+	var ok: bool = result.get("success", false)
+	if ok:
+		_set_inv_status("已丢弃「%s」——它掉在了地上，可在「地上」分区捡回。" % item.get("name", ""), true)
+	else:
+		_set_inv_status(str(result.get("message", "丢弃失败。")), false)
+	_refresh_inventory()
 
 
 ## ────────────────────────── 装备 ──────────────────────────
@@ -794,7 +1314,7 @@ func _on_settings_menu() -> void:
 
 
 func _goto_main_menu() -> void:
-	get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
+	Fx.goto("res://scenes/MainMenu.tscn")
 
 
 func _on_settings_exit() -> void:
@@ -834,19 +1354,14 @@ func _open_shop(shop_id: String) -> void:
 	main.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	# 左：商品列表
-	var list_scroll := ScrollContainer.new()
-	list_scroll.custom_minimum_size = Vector2(300, 290)
-	list_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	list_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_shop_list_box = VBoxContainer.new()
-	_shop_list_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list_scroll.add_child(_shop_list_box)
-	main.add_child(list_scroll)
+	var scroll_pair := _make_list_scroll(Vector2(300, 290))
+	main.add_child(scroll_pair[0])
+	_shop_list_box = scroll_pair[1]
 
 	# 右：商品详情
 	_shop_detail = RichTextLabel.new()
 	_shop_detail.bbcode_enabled = true
-	_shop_detail.scroll_active = false
+	_shop_detail.scroll_active = true
 	_shop_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_shop_detail.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_shop_detail.add_theme_color_override("default_color", GameModal.BODY_TEXT)
@@ -906,6 +1421,7 @@ func _refresh_shop() -> void:
 
 	_shop_selected = clampi(_shop_selected, 0, _shop_items.size() - 1)
 	_select_shop_item(_shop_selected)
+	_make_scroll_friendly(_shop_list_box)
 
 
 func _select_shop_item(index: int) -> void:
@@ -961,17 +1477,31 @@ func _refresh_diary_button() -> void:
 	_set_diary_flash(has_diary and bool(GameEngine.get_flag("sys_diary_unread", false)))
 
 
-## 有未读任务/笔记时让日记按钮呼吸闪烁
+## 背包里进了新东西（购买 / 掉落 / 剧情奖励）：让"物品"按钮被注意到一下
+func _on_item_added(_item_id: String) -> void:
+	Fx.attention(_btn_inventory, Palette.CYAN)
+
+
+## 有未读任务/笔记时让日记按钮缓慢呼吸（比原来 0.4 秒一次的硬闪耐看）。
+## 只在 0→1 的那一次撒一把粒子，之后保持轻微起伏，不会一直抢注意力。
 func _set_diary_flash(on: bool) -> void:
+	if on == _diary_flash_on:
+		return
+	_diary_flash_on = on
+
 	if _diary_flash_tween != null and _diary_flash_tween.is_valid():
 		_diary_flash_tween.kill()
 	_diary_flash_tween = null
 	_btn_diary.modulate = Color.WHITE
 	if not on:
 		return
+
+	Fx.sparkle(_btn_diary, ACCENT_DIARY)
 	_diary_flash_tween = create_tween().set_loops()
-	_diary_flash_tween.tween_property(_btn_diary, "modulate:a", 0.35, 0.4)
-	_diary_flash_tween.tween_property(_btn_diary, "modulate:a", 1.0, 0.4)
+	_diary_flash_tween.tween_property(_btn_diary, "modulate:a", 0.6, 1.1) \
+		.set_trans(Tween.TRANS_SINE)
+	_diary_flash_tween.tween_property(_btn_diary, "modulate:a", 1.0, 1.1) \
+		.set_trans(Tween.TRANS_SINE)
 
 
 func _open_diary() -> void:
@@ -989,18 +1519,13 @@ func _open_diary() -> void:
 	main.add_theme_constant_override("separation", 12)
 	main.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
-	var list_scroll := ScrollContainer.new()
-	list_scroll.custom_minimum_size = Vector2(250, 290)
-	list_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	list_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_diary_list_box = VBoxContainer.new()
-	_diary_list_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list_scroll.add_child(_diary_list_box)
-	main.add_child(list_scroll)
+	var scroll_pair := _make_list_scroll(Vector2(250, 290))
+	main.add_child(scroll_pair[0])
+	_diary_list_box = scroll_pair[1]
 
 	_diary_detail = RichTextLabel.new()
 	_diary_detail.bbcode_enabled = true
-	_diary_detail.scroll_active = false
+	_diary_detail.scroll_active = true
 	_diary_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_diary_detail.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_diary_detail.add_theme_color_override("default_color", GameModal.BODY_TEXT)
@@ -1061,10 +1586,12 @@ func _rebuild_diary_entries() -> void:
 		_diary_detail.text = ""
 		_diary_track_btn.disabled = true
 		_diary_delete_btn.disabled = true
+		_make_scroll_friendly(_diary_list_box)
 		return
 
 	_diary_selected = clampi(_diary_selected, 0, _diary_entries.size() - 1)
 	_select_diary_entry(_diary_selected)
+	_make_scroll_friendly(_diary_list_box)   # 列表项要 PASS，滚轮才滚得动
 
 
 func _make_section_header(text: String) -> Label:

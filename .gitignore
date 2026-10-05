@@ -1,10 +1,6 @@
-# ── 运行产物 / 本地存档 ──
-saves/
-engine_config.json
-
-# ── Python ──
-__pycache__/
-*.py[cod]
+# ── 运行产物 ──
+# Godot 导出的可执行文件（打包输出目录）
+build/
 
 # ── Godot ──
 # 导入缓存与编辑器状态，体积大且各机器不同，不入库

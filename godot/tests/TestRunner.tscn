@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3]
+
+; 核心逻辑自测场景：只有一个根节点，逻辑全在 tests/test_runner.gd 里。
+; 手动运行：godot --headless --path godot res://tests/TestRunner.tscn
+
+[ext_resource type="Script" path="res://tests/test_runner.gd" id="1"]
+
+[node name="TestRunner" type="Node"]
+script = ExtResource("1")

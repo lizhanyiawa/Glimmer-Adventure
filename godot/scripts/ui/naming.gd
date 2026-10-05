@@ -28,7 +28,7 @@ func _ready() -> void:
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
 		accept_event()
-		get_tree().change_scene_to_file(MAIN_MENU)
+		Fx.goto(MAIN_MENU)
 
 
 func _build_ui() -> void:
@@ -36,6 +36,8 @@ func _build_ui() -> void:
 	bg.color = DARK
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
+
+	Fx.add_ambient(self, Color(0.27, 0.95, 1.0, 0.14), 24)
 
 	var center := CenterContainer.new()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -54,6 +56,7 @@ func _build_ui() -> void:
 	sb.content_margin_bottom = 20
 	panel.add_theme_stylebox_override("panel", sb)
 	center.add_child(panel)
+	Fx.pop_in(panel, 0.0, 0.35)
 
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 10)
@@ -139,7 +142,7 @@ func _confirm() -> void:
 		return
 
 	GameEngine.set_player_name(raw)
-	get_tree().change_scene_to_file(TRANSITION)
+	Fx.goto(TRANSITION)
 
 
 func _is_cjk(code: int) -> bool:

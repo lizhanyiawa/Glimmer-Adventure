@@ -39,7 +39,9 @@ const SIZED_TYPES: Dictionary = {
 }
 
 var _theme: Theme = null
-var _fonts: Dictionary = {}
+var _fonts: Dictionary = {}       ## 原始字体
+var _bg_fonts: Dictionary = {}    ## 行高对齐后的正文字体（按当前字号档位算）
+var _hd_fonts: Dictionary = {}    ## 行高对齐后的标题字体
 var _current: String = "system"
 var _level: int = 1
 
@@ -50,8 +52,8 @@ func _ready() -> void:
 	_fonts["ark_pixel"] = _load_pixel_font(ARK_PIXEL_PATH)
 	_fonts["zpix"] = _load_pixel_font(ZPIX_PATH)
 	# GameEngine 在 autoload 里排在前面，此时它的 settings 已经读好了
-	apply(GameEngine.settings.get("font_style", "system"))
 	apply_level(int(GameEngine.settings.get("ui_font_level", 1)))
+	apply(GameEngine.settings.get("font_style", "system"))
 
 
 ## 切换字体风格；未知值或字体加载失败都回退到系统字体
@@ -59,8 +61,7 @@ func apply(style: String) -> void:
 	if not _fonts.has(style) or _fonts[style] == null:
 		style = "system"
 	_current = style
-	if _theme != null:
-		_theme.default_font = _fonts[style]
+	_apply_fonts()
 
 
 ## 切换界面字号档位（1 = 标准 12px，2 = 放大 24px）
@@ -70,13 +71,56 @@ func apply_level(level: int) -> void:
 	_level = level
 	if _theme == null:
 		return
+
 	var atom := BASE_ATOM * _level
+	var head := atom + HEADING_EXTRA
+
+	# 先把三款字体的行高对齐（理由见 _align_to_tallest），再挂到主题上
+	_bg_fonts = _align_to_tallest(atom)
+	_hd_fonts = _align_to_tallest(head)
+
 	_theme.default_font_size = atom
 	# 显式给几个基础控件定字号，免得它们各自回退到 Godot 内置主题的 16px
 	for type in SIZED_TYPES:
 		_theme.set_font_size(SIZED_TYPES[type], type, atom)
 	# 标题走主题里的 "Heading" 类型变体，Modal.tscn / GamePlay.tscn 的标题都挂了它
-	_theme.set_font_size("font_size", "Heading", atom + HEADING_EXTRA)
+	_theme.set_font_size("font_size", "Heading", head)
+
+	_apply_fonts()
+
+
+## 把当前字体（正文 + 标题两份）挂到主题上
+func _apply_fonts() -> void:
+	if _theme == null:
+		return
+	var raw: Font = _fonts.get(_current, null)
+	if raw == null:
+		return
+	_theme.default_font = _bg_fonts.get(_current, raw)
+	_theme.set_font("font", "Heading", _hd_fonts.get(_current, raw))
+
+
+## 三款字体在同一个字号下行高并不一样（12px 时：系统 17 / 方舟 16 / 最像素 12）。
+## 容器是按内容的"最小高度"撑开的，所以一换字体面板就被撑大或缩回去，界面跟着跳。
+## 这里以最高的那款为准，给矮的字体在行底补一点空，让三者高度一致。
+## 补在行底而不是行顶：多数字段是顶部对齐，这样文字的落点不变。
+func _align_to_tallest(size: int) -> Dictionary:
+	var target := 0.0
+	for key in _fonts:
+		var f: Font = _fonts[key]
+		if f != null:
+			target = maxf(target, f.get_height(size))
+
+	var out := {}
+	for key in _fonts:
+		var f: Font = _fonts[key]
+		if f == null:
+			continue
+		var v := FontVariation.new()
+		v.base_font = f
+		v.spacing_bottom = int(roundf(target - f.get_height(size)))
+		out[key] = v
+	return out
 
 
 func current_level() -> int:

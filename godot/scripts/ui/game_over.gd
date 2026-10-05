@@ -13,16 +13,25 @@ var _sb: StyleBoxFlat = null
 var _title: Label = null
 var _text: Label = null
 var _btn: Button = null
+## 是否已经点过"返回主菜单"。回车和按钮都能触发，加个哨兵防止连点重复重置。
+var _went := false
 
 
 func _ready() -> void:
+	# 全屏控件默认会拦截鼠标：设成忽略后，点画面任意处=回车。
+	# 面板里的按钮不受影响——它在最上层，会先拿到点击。
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_build_ui()
 	_play()
 
 
-func _unhandled_key_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
-		accept_event()
+func _unhandled_input(event: InputEvent) -> void:
+	var key_ok: bool = event is InputEventKey and event.pressed and not event.echo \
+		and event.keycode in [KEY_ESCAPE, KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]
+	var click_ok: bool = event is InputEventMouseButton and event.pressed \
+		and event.button_index == MOUSE_BUTTON_LEFT
+	if key_ok or click_ok:
+		get_viewport().set_input_as_handled()
 		_return_menu()
 
 
@@ -30,14 +39,19 @@ func _build_ui() -> void:
 	var bg := ColorRect.new()
 	bg.color = DARK
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
+
+	Fx.add_ambient(self, Color(1.0, 0.25, 0.15, 0.22), 26)
 
 	var center := CenterContainer.new()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(center)
 
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(560, 0)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_sb = StyleBoxFlat.new()
 	_sb.bg_color = BOX_BG
 	_sb.border_color = Color(0.2, 0.2, 0.2)
@@ -49,6 +63,7 @@ func _build_ui() -> void:
 	_sb.content_margin_bottom = 24
 	panel.add_theme_stylebox_override("panel", _sb)
 	center.add_child(panel)
+	Fx.pop_in(panel, 0.0, 0.45)
 
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 14)
@@ -110,5 +125,8 @@ func _tint(c: Color) -> void:
 
 
 func _return_menu() -> void:
+	if _went:
+		return
+	_went = true
 	GameEngine.reset_game()
-	get_tree().change_scene_to_file(MAIN_MENU)
+	Fx.goto(MAIN_MENU)

@@ -3,6 +3,10 @@ extends RefCounted
 ## 背包管理（对应 Python 的 engine/inventory.py）。
 ## 只操作 GameState.inventory，不涉及任何界面逻辑。
 
+## 有新东西进背包时发出（商店购买、战斗掉落、剧情奖励都走这里）。
+## 界面层靠它让"物品"按钮闪一下，不去猜背包为什么变了。
+signal item_added(item_id: String)
+
 const ITEM_TYPES: Dictionary = {
 	"key": "钥匙",
 	"weapon": "武器",
@@ -41,6 +45,7 @@ func add(item_id: String, item_name: String, desc: String = "", item_type: Strin
 	for item in state.inventory:
 		if item["id"] == item_id:
 			item["qty"] = item.get("qty", 1) + qty
+			item_added.emit(item_id)
 			return
 	state.inventory.append({
 		"id": item_id,
@@ -49,6 +54,7 @@ func add(item_id: String, item_name: String, desc: String = "", item_type: Strin
 		"type": item_type,
 		"qty": qty,
 	})
+	item_added.emit(item_id)
 
 
 ## 移除指定数量；数量归零则整条删除。返回是否成功找到该物品。

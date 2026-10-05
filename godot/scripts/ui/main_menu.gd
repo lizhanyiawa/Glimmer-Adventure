@@ -50,39 +50,51 @@ func _unhandled_key_input(event: InputEvent) -> void:
 ## ────────────────────────── 界面 ──────────────────────────
 
 func _build_ui() -> void:
-	var bg := ColorRect.new()
-	bg.color = DARK
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
+	# 与开场用同一套渐变底 + 尘埃，切场景时画面是连贯的，不会"啪"地换个底色
+	Fx.add_backdrop(self, Color("0a0e18"), Color("05060a"))
+	Fx.add_ambient(self, Color(0.27, 0.95, 1.0, 0.14), 30)
 
 	var center := CenterContainer.new()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(560, 0)
+	panel.custom_minimum_size = Vector2(600, 0)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = PANEL
 	sb.border_color = CYAN
 	sb.set_border_width_all(2)
 	sb.set_corner_radius_all(4)
-	sb.content_margin_left = 32
-	sb.content_margin_right = 32
-	sb.content_margin_top = 20
-	sb.content_margin_bottom = 20
+	sb.content_margin_left = 36
+	sb.content_margin_right = 36
+	sb.content_margin_top = 24
+	sb.content_margin_bottom = 24
+	# 一圈很淡的青色外发光。用 StyleBox 自带的投影实现，不用引入美术资源
+	sb.shadow_color = Color(CYAN.r, CYAN.g, CYAN.b, 0.16)
+	sb.shadow_size = 16
 	panel.add_theme_stylebox_override("panel", sb)
 	center.add_child(panel)
+	Fx.pop_in(panel, 0.0, 0.35)
 
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 10)
 	panel.add_child(box)
 
 	var title := Label.new()
-	title.text = "★ THE ADVENTURE ★"
+	title.text = "THE ADVENTURE"
 	title.theme_type_variation = &"Heading"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", CYAN_TEXT)
 	box.add_child(title)
+	Fx.fade_in(title, 0.10, 0.40)
+
+	# 标题下的细分隔线：比堆花哨的字形装饰克制，也更贴终端味
+	var rule := ColorRect.new()
+	rule.color = Color(CYAN, 0.5)
+	rule.custom_minimum_size = Vector2(300, 2)
+	rule.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(rule)
+	Fx.fade_in(rule, 0.18, 0.40)
 
 	var subtitle := Label.new()
 	subtitle.text = "—— 冒 险 ——"
@@ -107,6 +119,9 @@ func _build_ui() -> void:
 	var btn_exit := _make_menu_button("[4] 退出游戏")
 	btn_exit.pressed.connect(_confirm_quit)
 	box.add_child(btn_exit)
+
+	# 菜单项错峰淡入，比整块同时出现有精神
+	Fx.stagger([btn_new, _btn_load, btn_settings, btn_exit], 0.06, 0.28)
 
 	box.add_child(_make_spacer(6))
 
@@ -165,7 +180,7 @@ func _refresh_load_button() -> void:
 
 func _on_new_game() -> void:
 	GameEngine.reset_game()
-	get_tree().change_scene_to_file(NAMING)
+	Fx.goto(NAMING)
 
 
 func _confirm_quit() -> void:
@@ -247,7 +262,7 @@ func _open_load() -> void:
 
 func _do_load(slot: int) -> void:
 	if GameEngine.load_game(slot):
-		get_tree().change_scene_to_file(GAMEPLAY)
+		Fx.goto(GAMEPLAY)
 	else:
 		_open_confirm("读取失败", "这个存档读不出来。", func() -> void: pass, GameModal.ACCENT_PINK)
 

@@ -19,8 +19,9 @@
         "text": "【休息】闭上眼睛睡一会儿",
         "target_room": "thatched_hut_bed",
         "effects": {
-          "hp": 999,
-          "san": 999
+          "hp_to_max": true,
+          "san_to_max": true,
+          "sleep_until_morning": true
         }
       }
     ]

@@ -27,7 +27,10 @@
   "healing_potion": {
     "name": "初级治疗药水",
     "type": "consumable",
-    "value": 30
+    "value": 30,
+    "effect": {
+      "hp": 35
+    }
   },
   "cellar_chest_key": {
     "name": "地窖宝箱钥匙",
@@ -47,31 +50,49 @@
   "healing_potion_minor": {
     "name": "次级治疗药水",
     "type": "consumable",
-    "value": 20
+    "value": 20,
+    "effect": {
+      "hp": 20
+    }
   },
   "mana_potion_minor": {
     "name": "次级法力药水",
     "type": "consumable",
-    "value": 35
+    "value": 35,
+    "effect": {
+      "san": 10
+    }
   },
   "ale": {
     "name": "麦酒",
     "type": "consumable",
-    "value": 8
+    "value": 8,
+    "effect": {
+      "hp": 3
+    }
   },
   "bread": {
     "name": "黑面包",
     "type": "consumable",
-    "value": 5
+    "value": 5,
+    "effect": {
+      "hp": 5
+    }
   },
   "stew": {
     "name": "炖菜",
     "type": "consumable",
-    "value": 12
+    "value": 12,
+    "effect": {
+      "hp": 12
+    }
   },
   "bandage": {
     "name": "包扎绷带",
     "type": "consumable",
-    "value": 15
+    "value": 15,
+    "effect": {
+      "hp": 8
+    }
   }
 }

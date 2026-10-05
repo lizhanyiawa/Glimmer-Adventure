@@ -16,20 +16,22 @@ extends Control
 signal action_pressed(id: String)  ## 底部按钮被点击
 signal closed                      ## 弹窗已关闭（即将被销毁）
 
-## ── 配色板（沿用原 Textual 版本）──
-const BG := Color(0.043137, 0.047059, 0.062745)          # #0b0c10 全局底色
-const MODAL_BG := Color(0.086275, 0.098039, 0.137255)    # #161923 弹窗底
-const MODAL_BTN := Color(0.137255, 0.156863, 0.231373)   # #23283b 弹窗按钮底
-const BODY_TEXT := Color(0.772549, 0.776471, 0.780392)   # #c5c6c7 正文
-const MUTED := Color(0.698039, 0.698039, 0.698039)       # #b2b2b2 次要文字
-const DISABLED_BG := Color(0.066667, 0.066667, 0.066667) # #111111
-const DISABLED_FG := Color(0.2, 0.2, 0.2)                # #333333
+## ── 配色板 ──
+## 颜色统一放在 Palette 里（scripts/ui/palette.gd），这里只做别名，
+## 免得每个界面各写一份色值、改一处漏一处。
+const BG := Palette.BG                                   # 全局底色
+const MODAL_BG := Palette.MODAL_BG                       # 弹窗底
+const MODAL_BTN := Palette.MODAL_BTN                     # 弹窗按钮底
+const BODY_TEXT := Palette.BODY_TEXT                     # 正文
+const MUTED := Palette.MUTED                             # 次要文字
+const DISABLED_BG := Palette.DISABLED_BG
+const DISABLED_FG := Palette.DISABLED_FG
 
-const ACCENT_CYAN := Color(0.4, 0.988235, 0.945098)      # #66fcf1 青（物品栏）
-const ACCENT_PINK := Color(1, 0, 0.498039)               # #ff007f 粉（人物）
-const ACCENT_GOLD := Color(1, 0.666667, 0)               # #ffaa00 金（保存/设置）
-const ACCENT_AMBER := Color(0.866667, 0.666667, 0)       # #ddaa00 棕金（装备）
-const ACCENT_GREEN := Color(0, 1, 0.4)                   # #00ff66 绿（读取）
+const ACCENT_CYAN := Palette.CYAN                        # 青（物品栏）
+const ACCENT_PINK := Palette.PINK                        # 粉（人物）
+const ACCENT_GOLD := Palette.GOLD                        # 金（保存/设置）
+const ACCENT_AMBER := Palette.AMBER                      # 棕金（装备）
+const ACCENT_GREEN := Palette.GREEN                      # 绿（读取）
 
 const DEFAULT_BODY_HEIGHT := 220.0
 const DEFAULT_WIDTH := 640.0
@@ -47,9 +49,19 @@ var accent: Color = ACCENT_CYAN
 var input_blocked: bool = false
 var _closed: bool = false
 
+## 设计基准尺寸（在 1280×720 下的样子）。实际显示尺寸会按窗口大小等比放大，
+## 这样最大化窗口时弹窗也会跟着变大，而不是永远一小块。
+var _base_width: float = DEFAULT_WIDTH
+var _base_body_height: float = DEFAULT_BODY_HEIGHT
+
 
 func _ready() -> void:
 	_dim.gui_input.connect(_on_dim_gui_input)
+	get_viewport().size_changed.connect(_apply_size)
+	# 内容或底部按钮一变，重新算一次尺寸，保证弹窗不会长到屏幕外面去
+	_body.minimum_size_changed.connect(_apply_size)
+	_footer.minimum_size_changed.connect(_apply_size)
+	_apply_size()
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -88,12 +100,44 @@ func set_accent(color: Color) -> void:
 
 
 func set_width(width: float) -> void:
-	_frame.custom_minimum_size.x = width
+	_base_width = width
+	_apply_size()
 
 
 ## 内容区最小高度。内容超出时出现滚动条。
 func set_body_height(height: float) -> void:
-	_body_scroll.custom_minimum_size.y = height
+	_base_body_height = height
+	_apply_size()
+
+
+## 按当前窗口大小换算实际尺寸：1280×720 下就是设计值，窗口更大就等比放大。
+##
+## 关键约束：标题和底部按钮是"不可压缩"的，内容区只能用剩下的高度，
+## 并且左右各留 24px。这样无论窗口被拉多大，弹窗都不会顶出屏幕、
+## 不会把按钮挤出可视区——超出部分在弹窗内部滚动。
+func _apply_size() -> void:
+	var vp := get_viewport_rect().size
+	var sx := clampf(vp.x / 1280.0, 0.8, 1.6)
+	var sy := clampf(vp.y / 720.0, 0.8, 1.4)
+
+	_frame.custom_minimum_size.x = clampf(_base_width * sx, 320.0, maxf(320.0, vp.x - 48.0))
+
+	var footer_h := 0.0
+	var count := _footer.get_child_count()
+	if count > 0:
+		footer_h = count * 36.0 + (count - 1) * 6.0
+	var chrome := footer_h + 150.0  # 150 ≈ 标题 + 面板内外边距 + 分隔
+	var max_body := maxf(72.0, vp.y - chrome)
+
+	# 内容高度取「设计高度的下限」：内容比它高就长高（最多到 max_body），
+	# 比它矮也不缩回去。
+	#
+	# 为什么要有这个下限：切换设置项时内容会被整块重建，重建的一瞬间
+	# 内容高度是骤降的（旧节点已清空、新节点还没排好），弹窗就会"折叠"一下，
+	# 按钮跟着乱跑、点不准。锁住下限之后弹窗尺寸始终稳定。
+	var want := _base_body_height * sy
+	var needed := _body.get_combined_minimum_size().y
+	_body_scroll.custom_minimum_size.y = clampf(maxf(want, minf(needed, max_body)), 48.0, max_body)
 
 
 ## ────────────────────────── 内容填充 ──────────────────────────
@@ -206,6 +250,7 @@ func add_action(id: String, label: String, button_accent: Color = Color.WHITE,
 ## 打开后把键盘焦点放进弹窗，避免方向键漏到底下的游戏画面
 func open() -> void:
 	_closed = false
+	Fx.pop_in(_frame, 0.0, 0.26)  # 面板弹入
 	var first := _first_focusable()
 	if first != null:
 		first.grab_focus.call_deferred()

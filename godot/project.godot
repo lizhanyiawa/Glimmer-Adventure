@@ -19,6 +19,7 @@ config/features=PackedStringArray("4.7")
 
 GameEngine="*res://scripts/core/game_engine.gd"
 FontManager="*res://scripts/ui/font_manager.gd"
+Fx="*res://scripts/ui/fx.gd"
 
 [display]
 

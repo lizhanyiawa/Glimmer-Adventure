@@ -1,0 +1,26 @@
+{
+    "room_id": "thatched_hut_bed",
+    "dialogue_id": "intro_wake_1",
+    "play_time": 0.0,
+    "last_saved": "2026-06-08 23:11:39",
+    "stats": {
+        "attack": 5,
+        "defense": 5,
+        "intelligence": 5,
+        "agility": 5,
+        "hp": 100,
+        "max_hp": 100,
+        "san": 100,
+        "corruption": 0,
+        "player_name": "1111"
+    },
+    "inventory": [],
+    "equipment": {},
+    "diary": {
+        "tasks": [],
+        "notes": []
+    },
+    "flags": {
+        "sys_has_named": true
+    }
+}

@@ -1,0 +1,57 @@
+{
+    "room_id": "eastern_forest_deep",
+    "dialogue_id": "",
+    "play_time": 0.0,
+    "last_saved": "2026-06-04 00:19:37",
+    "stats": {
+        "attack": 5,
+        "defense": 3,
+        "intelligence": 5,
+        "agility": 5,
+        "hp": 100,
+        "max_hp": 100,
+        "san": 100,
+        "corruption": 0,
+        "player_name": "Kirara"
+    },
+    "inventory": [
+        {
+            "id": "ballpoint_pen",
+            "name": "圆珠笔",
+            "desc": "一支普通的圆珠笔，不知为何和你一起穿越了。",
+            "type": "misc",
+            "qty": 1
+        }
+    ],
+    "diary": {
+        "tasks": [
+            {
+                "id": "quest_mushroom",
+                "title": "采集荧光蘑菇",
+                "content": "莉莉安需要东部森林里的荧光蘑菇。她说可以在森林外围找到，千万别走太深。",
+                "done": false
+            }
+        ],
+        "notes": [
+            {
+                "id": "note_20260602220931",
+                "title": "我喜欢你",
+                "content": "你喜欢我喜欢你喜欢我",
+                "created": "2026-06-02 22:09"
+            }
+        ]
+    },
+    "flags": {
+        "met_alice": false,
+        "classroom_power_cut": false,
+        "corridor_guarded": true,
+        "has_named": true,
+        "has_diary": true,
+        "has_village_key": true,
+        "intro_monologue_done": true,
+        "met_barkeeper": true,
+        "alchemy_quest": true,
+        "met_lillian": true,
+        "diary_unread": false
+    }
+}

@@ -18,7 +18,6 @@ build/
 .mcp.json
 
 # ── 私人设定与草稿 ──
+# structure.txt 已纳入版本管理（工程结构 + 进度/待做），不再忽略
 自嗨产物.txt
-todo.txt
-structure.txt
 story.txt

@@ -1,0 +1,527 @@
+---
+
+# ★ THE ADVENTURE ★ 项目结构（Godot 版）
+
+---
+
+## 一、项目概览
+
+| 项目 | 说明 |
+|------|------|
+| **当前主线** | Godot 4.7 工程，位于 `godot/`，是仓库里唯一的运行版本 |
+| **技术栈** | Godot 4.7 (GDScript, gl_compatibility) + JSON 数据 |
+| **旧版归档** | Python 3 / Textual 版已从 main 清退，完整保留在 `python-legacy` 分支（只读归档，不再维护） |
+| **题材** | 异世界穿越 (Isekai) 黑暗幻想叙事，2D |
+| **入口** | 用 Godot 打开 `godot/` 工程，主场景 `res://scenes/Intro.tscn` |
+| **数据位置** | `godot/data/`（运行时即 `res://data/`），见 §4.0 |
+| **开发阶段** | 渲染层迁移完成：开场→标题→起名→转场→苏醒→主玩法→战斗→结局全线跑通 |
+
+---
+
+## 二、技术架构
+
+Godot 版沿用「逻辑与界面分离」的思路，但落地方式从 Textual 的 Screen 栈换成了 **autoload 单例 + 场景树 + 信号**。
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  godot/data/  JSON 数据层（逻辑 / 文本分离，运行时即 res://data/）     │
+│  rooms/ rooms_text/ dialogues(_text) items(_text) enemies(_text) shops │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │ 启动时读取 + 合并
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  autoload 单例（全局，/root/ 下）                                       │
+│                                                                      │
+│   GameEngine   ← 核心调度：数据加载 / GameState / flag / 效果 / 商店    │
+│                  / 装备 / 存读档。不含任何界面代码                      │
+│   FontManager  ← 像素字体与字号档位（标准 12px / 放大 24px）            │
+│   Fx           ← 演出：转场淡入淡出 / 入场动效 / 虚血 / 氛围粒子        │
+│                                                                      │
+│   Palette（静态类，非 autoload）← 颜色 + 剧情标签→BBCode，与引擎解耦    │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │ 调用 + 信号（stats_changed / inventory_changed
+                                │ / room_changed / game_loaded / item_added）
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  场景层 scenes/*.tscn + 控制脚本 scripts/ui/*.gd                       │
+│  Intro / MainMenu / Naming / Transition / Brighten /                  │
+│  GamePlay（核心画布）/ Battle / GameOver / Modal（通用弹窗外壳）        │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**架构特点：**
+
+- **数据驱动 + 逻辑/文本分离**：剧情、对话、道具、敌人、商店全部在 JSON；逻辑（条件/选项/效果）与文本（描述/叙事）分文件存放，引擎启动时合并（`GameEngine._load_all_data()`）。
+- **核心层不依赖界面**：`scripts/core/` 只处理数据与规则，界面靠 `GameEngine` 的信号被动刷新，核心层可以直接单测。
+- **表现层三件套解耦**：配色/标签在 `Palette`、动画在 `Fx`、字体字号在 `FontManager`，改风格不用翻界面代码。
+- **统一交互约定**：装饰性控件 `mouse_filter = IGNORE`，`RichTextLabel = PASS`（保留滚轮），只有 `Button = STOP`。这样"点击空白 = 回车"能够一路传到底。
+- **自定义剧情标签**：`<fire> <ice> <shadow> …` 由 `Palette.render()` 统一映射成 RichTextLabel 认得的 BBCode，数据文件不用改。
+
+---
+
+## 三、目录结构与文件关系
+
+```
+d:\The adventure\
+├── 自嗨产物.txt                # ★ 设定唯一权威（冲突时以此为准）
+├── structure.txt               # 本文件：项目结构说明
+├── README.md                   # 上手说明（怎么跑、怎么打包）
+│
+├── godot/                      # ====== 游戏工程（唯一运行版本）======
+│   ├── project.godot           # 主场景 / autoload / 主题 / 渲染后端
+│   ├── export_presets.cfg      # 导出预设（Windows Desktop，输出到 build/）
+│   ├── assets/
+│   │   ├── fonts/              # zpix.ttf（最像素）、ark_pixel_12px_zh_hans.woff2（方舟像素）
+│   │   └── theme/game_theme.tres   # 全局主题（默认字体 = FontManager 当前字体）
+│   ├── addons/godot-mcp/       # 第三方编辑器插件（开发期工具，不参与运行）
+│   ├── data/                   # ====== 数据层（逻辑 + 文本分离）======
+│   │   ├── rooms/              # 房间逻辑（options / effects / flags）
+│   │   │   ├── rooms_hut.json / rooms_cellar.json / rooms_village.json / rooms_forest.json
+│   │   ├── rooms_text/         # 房间文本（title / description / description_alt）
+│   │   ├── dialogues.json      # 对话逻辑（speaker / options）
+│   │   ├── dialogues_text.json # 对话文本（text）
+│   │   ├── items.json          # 物品逻辑（name / type / value / equip_slot）
+│   │   ├── items_text.json     # 物品文本（desc）
+│   │   ├── enemies.json        # 敌人逻辑（stats / drops / xp / pre_battle）
+│   │   ├── enemies_text.json   # 敌人文本（description / narrative / san_text）
+│   │   └── shops.json          # 商店逻辑（name / greeting / items[]）
+│   ├── tests/                  # 核心逻辑自测（headless 可跑，见 §十）
+│   │   ├── test_runner.gd
+│   │   └── TestRunner.tscn
+│   ├── scenes/                 # 场景（.tscn）
+│   │   ├── Intro.tscn          # ★ 主场景
+│   │   ├── MainMenu.tscn
+│   │   ├── Naming.tscn
+│   │   ├── Transition.tscn     # 转场独白
+│   │   ├── Brighten.tscn       # 苏醒
+│   │   ├── GamePlay.tscn       # ★ 核心画布
+│   │   ├── Battle.tscn         # 战斗界面
+│   │   ├── GameOver.tscn       # 结局（阵亡）
+│   │   └── Modal.tscn          # 通用弹窗外壳（被多个界面复用）
+│   └── scripts/
+│       ├── core/               # ====== 核心层（纯逻辑，不依赖界面）======
+│       │   ├── game_engine.gd      # GameEngine（autoload）：数据加载/自检/flag/效果/商店/装备/存读档
+│       │   ├── game_state.gd       # GameState：状态容器
+│       │   ├── inventory_manager.gd# InventoryManager：背包（发 item_added 信号）
+│       │   ├── save_manager.gd     # SaveManager：user:// 存档序列化/校验
+│       │   └── battle.gd           # BattleManager + Combatant：回合制战斗数据层
+│       └── ui/                 # ====== 界面层（场景控制脚本）======
+│           ├── palette.gd          # Palette：颜色 + 剧情标签→BBCode（静态，与引擎解耦）
+│           ├── fx.gd               # Fx（autoload）：转场/入场/虚血/粒子/背景
+│           ├── font_manager.gd     # FontManager（autoload）：字体与字号档位
+│           ├── modal.gd            # GameModal：通用弹窗控制器
+│           ├── settings_panel.gd   # SettingsPanel：设置项渲染与切换（主菜单/游戏内共用）
+│           ├── intro.gd / main_menu.gd / naming.gd
+│           ├── transition.gd / brighten.gd
+│           ├── game_play.gd        # ★ 主玩法：渲染 + 接线（弹窗/战斗/商店/日记）
+│           ├── battle.gd           # BattleScene：战斗界面
+│           └── game_over.gd
+│
+└── tools/
+    └── godot-mcp-proxy.js      # Godot MCP 的本地代理脚本（开发辅助，不参与运行）
+```
+
+---
+
+## 四、数据模型
+
+### 4.0 数据目录解析（`GameEngine._resolve_data_root()`）
+
+数据已收进工程，位于 `godot/data/`（运行时即 `res://data/`）。引擎优先读 `res://data/`，找不到才回退到项目上一层的 `../data/`（兼容旧布局）。数据在 `res://` 之内，导出打包会自动带上，不再需要手工复制。
+
+### 4.0.1 启动期数据自检（`GameEngine.validate_data()`）
+
+启动时（仅调试构建）自动扫一遍所有数据，把"引用了不存在的东西"提前报出来，控制台/调试器里以 `[数据自检]` 开头的 warning 呈现。检查项：
+
+- 选项的 `target_room` / `target_dialogue` / `battle` / `shop` 是否真实存在；
+- 房间的 `enter_dialogue`、房间级 `shop` 是否真实存在；
+- `effects.items.add` / `remove` 引用的物品是否在 `items.json` 里；
+- 商店出售的物品、敌人掉落物是否存在；
+- 战斗叙事里的占位符是否只用 `{name}` / `{dmg}`；
+- 文本层（`*_text.json`）有没有对不上逻辑层的孤儿条目、`description_alt` 文本数与条件数是否相等；
+- 旧版无前缀 flag 汇总成一条提示（不逐条刷屏）。
+
+### 4.1 GameState（`godot/scripts/core/game_state.gd`）
+
+字段与 Python 版一致：
+
+```text
+room_id : String       # 当前房间 ID
+dialogue_id : String   # 当前对话 ID（空 = 非对话状态）
+stats : Dictionary     # hp / max_hp / san / corruption / attack / defense
+                       # / intelligence / agility / coins / player_name
+inventory : Array      # [{id, name, desc, type, qty}]
+equipment : Dictionary # slot → {item_id, name, stats}
+ground : Dictionary    # room_id → 地上的物品数组（丢弃的落这里，可捡回）
+diary : Dictionary     # {tasks:[{id,title,content,done}], notes:[{id,title,content,created}]}
+flags : Dictionary     # 剧情分支控制核心，命名规范见 §七
+game_day : int         # 游戏内第几天
+game_time : int        # 游戏内小时（0-23），见 §4.2 特殊键
+```
+
+### 4.2 Room（`rooms/*.json` + `rooms_text/*.json`）
+
+逻辑文件只含条件/选项/效果；文本文件含 `title` / `description` / `description_alt` 文本数组。引擎启动时按 `room_id` 合并，`description_alt` 的 `if` 条件来自逻辑文件，`text` 按同索引取自文本文件。
+
+```text
+"<room_id>": {
+  "title": "...", "description": "...",
+  "description_alt": [ { "if": {flags, stats}, "text": "替代描述" } ],
+  "options": [ {
+      "text": "选项文本",
+      "target_room": "...", "target_dialogue": "...",   // 对话优先于房间
+      "battle": "敌人ID", "post_battle": { ... },        // 触发战斗 + 战后效果
+      "shop": "商店ID",                                  // 打开交易界面
+      "require": { "flags": {...}, "stats": {...}, "items": { "has": "id" } },
+      "exclude": { "flags": {...} },                     // OR 逻辑
+      "hidden_text": "条件不满足时的灰字",
+      "effects": { "flags": {...}, "stats": {...}, "hp": delta,
+                   "items": { "add": ["id"], "remove": ["id"] },
+                   "tasks": { "add": [{...}], "complete": ["task_id"] },
+                   "notes": { "add": [{...}] } }
+  } ]
+}
+```
+
+**effects 里的几个特殊键：**
+
+- `hp_to_max` / `san_to_max`（true）：直接回满，不写具体数字。睡觉用它，以后数值膨胀也不用改（`apply_effects` 走 `_apply_stat_to_max`，界面提示显示"已回满"而不是 `+999`）。
+- `advance_hours`（int）：推进游戏内时间 N 小时。
+- `sleep_until_morning`（true）：睡到第二天早上 6 点。
+- 换房间（`select_option` 里目标房间和当前不同）会自动推进 1 小时。
+
+### 4.3 Dialogue（`dialogues.json` + `dialogues_text.json`）
+
+`speaker`（空 = 独白）、`text`（来自文本文件）、`options[]`（结构与 Room 的 options 一致，可 `target_dialogue` 链式跳转或 `target_room` 退出对话）。
+
+### 4.4 Item（`items.json` + `items_text.json`）
+
+逻辑：`name` / `type`(key\|weapon\|armor\|consumable\|material\|quest\|misc) / `value`（售价，0=不可卖） / `equip_slot`（可选） / `equip_stats`（可选） / `effect`（消耗品使用效果，如 `{"hp": 35}`）。文本：`desc`。
+
+消耗品在物品栏用「使用」按钮触发 `GameEngine.use_item()`；满血时使用回血药会被拒绝并提示，不浪费。物品栏底部按当前选中物品**动态生成**操作按钮（装备 / 卸下 / 使用 / 丢弃），丢弃会把物品放进当前房间的 `state.ground`，可在「地上」分区捡回。
+
+### 4.5 Enemy（`enemies.json` + `enemies_text.json`）
+
+逻辑：`name` / `hp` / `attack` / `defense` / `agility` / `pre_battle` / `drops` / `xp` / `flee_mod` / `san_drop`。文本：`description`（调查文本）、`narrative`（所有战斗叙事，值可为字符串或数组，数组随机抽取）、`san_text`（首次遭遇的理智提示）。合并逻辑在 `GameEngine._load_enemies_db()`。
+
+**叙事占位符**：`narrative` 里可用 `{name}`（敌人名）与 `{dmg}`（伤害值），由 `BattleManager._fmt_narrative()` 统一替换。**新增文案若用到占位符，务必走 `_fmt_narrative`/`get_narrative`，不要直接 `_pick_narrative`。**
+
+### 4.6 Shop（`shops.json`）
+
+```text
+"<shop_id>": { "name": "...", "npc_name": "...", "greeting": "...",
+  "items": [ { "item_id": "ale", "price": 8, "stock": -1 } ] }   // stock -1 = 无限
+```
+
+---
+
+## 五、核心流程
+
+### 5.1 启动流程
+
+```text
+Godot 运行 → 主场景 Intro.tscn
+    → GameEngine._ready()：解析数据目录 → 加载合并全部 JSON
+                           → 建 GameState / InventoryManager / SaveManager
+                           → 读取 user://engine_config.json 设置
+    → Intro 播完 → Fx.goto(MainMenu.tscn)
+```
+
+> 所有换场景都走 `Fx.goto(path)`（黑场淡出 → change_scene → 淡入），**不要裸调** `change_scene_to_file`。
+
+### 5.2 新游戏流程
+
+```text
+MainMenu [新游戏] → Naming（输入名字，GameEngine.set_player_name）
+    → Transition（逐行打字机独白，Enter/空格/点击：先快进本句，再翻页）
+    → Brighten（边框渐亮，可跳过）
+    → GamePlay
+         └─ 若 intro_monologue_done = false → 进入对话 intro_wake_1
+```
+
+### 5.3 核心游戏循环（`game_play.gd`）
+
+```text
+load_current_room()
+    ├─ _check_game_over()：hp<=0 → Fx.goto(GameOver)
+    ├─ 刷新状态栏 / 追踪任务 / 日记按钮
+    ├─ dialogue_id 非空 → get_dialogue()，否则 get_room()
+    ├─ _set_location(位置 + 时间)       # 文字变了才弹入高亮；时间变只更文字不弹
+    ├─ _set_options_pending()           # 选项灰显「聆听常识流动中…」并禁用
+    └─ _type_story(full_text, node_data)
+          ├─ 打字机逐字显示（按可见字数计时）
+          ├─ 点空白 / Enter / 空格 → _skip_typing() 直接放全文
+          └─ 完成后 _rebuild_options()  # 条件过滤 + 连续编号 1~6
+```
+
+### 5.4 玩家选择处理（`_select_option`）
+
+```text
+_select_option(index)
+    ├─ GameEngine.select_option(option)     # apply_effects + 跳转 room/dialogue
+    ├─ 写历史：玩家选择 + 属性变更（腐化颜色反向）
+    ├─ option.battle 非空 → _open_battle(enemy_id, post_battle)  # 盖战斗层，打完再刷新
+    ├─ option.shop   非空 → _open_shop(shop_id)                  # 打开交易，不刷新房间
+    └─ 否则 → load_current_room()
+```
+
+### 5.5 战斗流程（`battle.gd` ⇄ `core/battle.gd`）
+
+```text
+GamePlay._open_battle()
+    ├─ 关掉本画面的 unhandled_key_input（防止 1~6 透传到选项）
+    └─ 实例化 Battle.tscn → setup(enemy_id, post_battle)
+          ├─ BattleManager.new(GameEngine, enemy_id)
+          ├─ 首次见怪 → 扣 SAN + san_extra 提示
+          ├─ resolve_pre_battle()（如投石）
+          ├─ rebuild_turn_order()（按敏捷降序）
+          └─ _start_turn() 回合循环
+                ├─ 玩家回合 → 开放 [1]攻击 / [2]行动（防御·调查）/ [3]逃跑
+                │     攻击/防御/调查/逃跑 → BattleManager 对应方法 → _display(narrative)
+                └─ 敌人回合 → enemy_act() → 眩晕跳过 / 攻击（有防御则减半）
+                     结束 → _end_battle()：胜利结算奖励 / 战败
+                            → _close_battle()：finished.emit() + queue_free()
+                            → GamePlay._on_battle_finished() → load_current_room()
+```
+
+**伤害公式**（与 Python 版逐字一致）：`damage = max(1, round(atk * rand(0.9,1.1) * (100 / (100 + def*0.8))))`，10% 暴击 ×1.5。
+**每回合回写**：`_sync_to_state()` 在每个行动结束后把 HP/AGI 同步回 GameState，防止异常退出丢进度。
+
+### 5.6 弹窗机制（`modal.gd` + `Modal.tscn`）
+
+GameModal 是一个"外壳"，吃下人物/物品/保存/读取/装备/设置/商店/日记/确认框等所有界面；差异只有标题、强调色、中间内容和底部按钮，全靠 `configure()` + `add_text()` / `add_node()` / `add_action()` 编程填充。
+
+- **尺寸**：按窗口等比缩放，且被约束在可视区内（内容超出在弹窗内部滚动，底部按钮常驻）。
+- **栈管理**：`GamePlay._modal_stack` 用数组压栈；栈非空时主画面不响应键盘；上层弹窗置 `input_blocked = true` 屏蔽下层的 ESC。
+- 列表类弹窗（物品/商店/日记）的 ScrollContainer 内部项一律 `mouse_filter = PASS`，滚轮才传得出去。
+
+### 5.7 存/读档
+
+存档走 `user://`（`SaveManager`），保证打包后可用（与 Python 版写 `saves/` 不同）。读档成功后 `GameEngine.load_game()` 会重建 `InventoryManager` 并依次发 `game_loaded` / `stats_changed` / `inventory_changed` / `room_changed`。
+
+---
+
+## 六、关键类与接口
+
+### 6.1 GameEngine（autoload，`scripts/core/game_engine.gd`）
+
+| 方法 | 说明 |
+|------|------|
+| `get_room(id)` / `get_dialogue(id)` / `get_item_def(id)` / `get_enemy(id)` / `get_shop(id)` | 取数据（均返回深拷贝，改副本不影响库） |
+| `check_option_visible(option)` | 返回 `"visible"` / `"hidden"`（灰显）/ `"excluded"`（不显示） |
+| `resolve_room_description(room_data)` | 按 `description_alt` 条件选描述 |
+| `apply_effects(effects)` | 应用 stats/flags/items/tasks/notes，不处理房间跳转 |
+| `select_option(option)` | 应用效果并跳转，返回 `{success, next_room, next_dialogue}` |
+| `resolve_stats_changes(effects)` | 抽成 `[{key, delta}]` 供界面提示 |
+| `equip(id)` / `unequip(slot)` / `get_equipment()` / `get_equipped_stats_summary()` | 装备系统 |
+| `use_item(id)` | 使用消耗品（读 `effect` 应用效果；满血拒用回血药） |
+| `drop_to_ground(item)` / `pick_up_ground_item(index)` / `get_ground_items(room_id)` | 丢到地上 / 捡回 / 取某房间地面物品 |
+| `advance_time(hours)` / `sleep_until_morning()` / `get_time_display()` / `has_timepiece()` | 游戏内时间推进与显示 |
+| `buy_item(shop, item, qty)` / `sell_item(item, qty)` | 交易（出售回收 40%） |
+| `save_game(slot)` / `load_game(slot)` / `validate_save(slot)` / `delete_save(slot)` / `get_save_slots()` | 存读档代理 |
+| `get_flag(key, default)` / `set_flag(key, value)` / `delete_flag(key)` | flag 统一入口（写入时校验命名空间） |
+| `set_player_name(name)` / `reset_game()` | 命名 / 重置 |
+| `load_settings()` / `save_settings()` | 设置落盘（`user://engine_config.json`） |
+
+**信号**：`stats_changed` / `inventory_changed` / `room_changed(room_id)` / `game_loaded` / `time_changed(day, hour)`。
+
+### 6.2 InventoryManager（`scripts/core/inventory_manager.gd`）
+
+`add_by_id(id, qty)` / `add(...)` / `remove(id, qty)` / `has(id, qty)` / `get_item(id)` / `all()` / `count()` / `type_name(type)`。
+**信号**：`item_added(item_id)` —— 商店购买、战斗掉落、剧情奖励都会发，界面靠它让"物品"按钮撒粒子。
+
+### 6.3 BattleManager + Combatant（`scripts/core/battle.gd`）
+
+| 方法 | 说明 |
+|------|------|
+| `resolve_pre_battle()` | 预战斗事件（如投石眩晕） |
+| `rebuild_turn_order()` / `is_player_turn()` / `can_defend()` | 回合判定 |
+| `player_attack()` / `player_defend()` / `player_investigate()` / `player_flee()` | 玩家行动，返回 `{text, dmg}` 或文本 |
+| `enemy_act()` | 敌人行动（眩晕跳过 / 攻击，有防御则减半） |
+| `get_narrative(key, fallback)` | 界面取叙事文本的公开入口（会自动替换 `{name}`/`{dmg}`） |
+| `finalize()` / `apply_rewards()` | 结算 + 掉落进背包 |
+
+### 6.4 SaveManager（`scripts/core/save_manager.gd`）
+
+`save(state, slot)` / `load_slot(state, slot)` / `validate(slot)` / `delete(slot)` / `get_slots()`。存档写入 `user://`。反序列化时对 stats/flags 做类型校验，拒绝被篡改的损坏数据。
+
+### 6.5 Palette（静态，`scripts/ui/palette.gd`）
+
+- 颜色常量：底色/面板/文字/强调色（CYAN/PINK/GOLD/…）/血条（`bar_color(ratio)`：<30% 红、<60% 琥珀、否则青）。
+- `render(text)`：把剧情文本里的 `<fire> <shadow> <shake> …` 转成 RichTextLabel 认得的 BBCode，并去掉 `<pause/>` `<retract/>` 这类流程标签。**标签名与 Python 版完全一致，data/ 不用改。**
+- 与引擎零依赖：想换配色只改这一个文件。
+
+### 6.6 Fx（autoload，`scripts/ui/fx.gd`）
+
+| 方法 | 说明 |
+|------|------|
+| `goto(path)` | 黑场淡出 → 换场景 → 淡入（唯一换场景入口，内有 `_busy` 防重入） |
+| `fade_in` / `pop_in` / `stagger` | 入场动效（容器内节点只能用 fade/stagger，position 会被容器覆盖） |
+| `ghost_drain(bar, prev, new)` | 血条"虚血"残影，掉落的那一截慢慢排空（`GHOST_DURATION = 1.4s`） |
+| `sparkle` / `attention` | 提醒：粒子 + 轻微呼吸 |
+| `add_backdrop` / `add_ambient` | 代码生成的渐变底色 / 氛围粒子 |
+
+### 6.7 FontManager（autoload，`scripts/ui/font_manager.gd`）
+
+两款像素字体按 12px 设计，**字号必须是 12 的整数倍**。只有两档：1 = 标准（正文 12）、2 = 放大（正文 24）；`Heading` 变体 = 正文 + 12。界面字号不要写死，跟随全局主题。
+
+### 6.8 GameModal / BattleScene
+
+- `GameModal`（`scripts/ui/modal.gd`）：`configure(cfg)` 一次性配置并清空旧内容；`add_text` / `add_rich_text` / `add_row` / `add_toggle_row` / `add_node` / `add_action` / `style_button`；信号 `action_pressed(id)` / `closed`。
+- `BattleScene`（`scripts/ui/battle.gd`）：根节点 `mouse_filter = STOP`（拦截下层），内部装饰一律 IGNORE，动作按钮 STOP；信号 `finished`。
+
+---
+
+## 七、剧情分支系统（flag 驱动）
+
+### 7.1 命名空间规范
+
+所有 flag 遵循 `[作用域]_[子域]_[含义]`，前缀白名单在 `GameEngine.FLAG_PREFIXES`：
+
+| 前缀 | 作用域 | 示例 |
+|------|--------|------|
+| `loc_` | 地点状态 | `loc_cellar_visited`, `loc_well_touched` |
+| `battle_` | 战斗相关 | `battle_rat_defeated` |
+| `npc_` | NPC 相关 | `npc_barkeeper_met` |
+| `item_` | 物品相关 | `item_lantern_lit` |
+| `story_` | 主线推进 | `story_ch1_cellar_explored` |
+| `q_` | 支线任务 | `q_herb_delivery_started` |
+| `sys_` | 系统 / UI 状态 | `sys_has_named`, `sys_diary_unread`, `sys_tracked_task_id` |
+| `char_` | 主角名义状态 | `char_hungry`, `char_wounded` |
+| `san_` | 理智相关触发 | `san_low` |
+
+写入 flag 时自动校验；旧版无前缀 flag 由 `_init_flag_whitelist()` 扫描数据自动白名单化（不告警），新增无前缀 flag 会 `push_warning`。
+
+### 7.2 三个核心机制
+
+1. **选项可见性** `check_option_visible`：`exclude.flags` 是 OR（任一命中即排除），`require.{flags,stats,items}` 是 AND（全满足才显示）。
+2. **描述动态切换** `resolve_room_description`：`description_alt[]` 顺序匹配，首个满足 `if` 的生效。
+3. **效果系统** `apply_effects`：改 flags/stats/items/tasks/notes；`hp/san` 只受 0 下限（并夹到 max/100），其余属性夹在 0~99。
+
+---
+
+## 八、已有游戏内容
+
+### 场景（按区域）
+
+| 区域 | 房间 ID |
+|------|---------|
+| **茅草屋** | `thatched_hut_bed` / `thatched_hut` / `thatched_hut_candle` / `thatched_hut_drawer` / `thatched_hut_diary` / `thatched_hut_window` / `outside_hut` / `outside_hut_runes` |
+| **地窖** | `cellar_entrance` / `cellar_entrance_barrels` / `cellar_alchemy` / `cellar_alchemy_cauldron` / `cellar_alchemy_table` / `cellar_alchemy_chest` / `cellar_vault` |
+| **村庄** | `village_entrance` / `village_well` / `village_center` / `village_monument` / `village_tavern` / `village_tavern_guests` / `village_alchemy` / `village_alchemy_potions` / `village_outskirts` |
+| **森林** | `eastern_forest_entrance` / `eastern_forest_spiderweb` / `eastern_forest_deep` / `eastern_forest_tracks` / `eastern_forest_threat` |
+
+### 敌人
+
+| ID | 名称 | HP | ATK | DEF | AGI | 位置 |
+|----|------|-----|-----|-----|-----|------|
+| `spined_rat` | 刺毛鼠 | 18 | 4 | 2 | 7 | 地窖密室 |
+| `shadow_beast` | 暗鳞狼 | 40 | 7 | 5 | 8 | 东部森林 |
+
+### 对话
+
+`village_tavern_barkeeper_greet` / `village_tavern_barkeeper_repeat`（格蕾塔）、`village_alchemy_talk_first` / `village_alchemy_talk_repeat`（莉莉安）。
+
+### 关键 flag
+
+| Flag | 用途 |
+|------|------|
+| `sys_has_named` | 玩家已命名 |
+| `sys_diary_unread` | 日记有未读 |
+| `sys_tracked_task_id` | 当前追踪任务 ID（str） |
+| `intro_monologue_done` | 初始独白完成 |
+| `has_diary` / `has_village_key` | 物品获取状态 |
+| `candle_blown` | 蜡烛吹灭状态机 |
+| `cellar_visited` / `cellar_explored` / `chest_opened` | 地窖探索 |
+| `rat_defeated` / `shadow_beast_slain` | 战斗胜负 |
+| `first_monster_seen` | 首次见怪（控 SAN 扣除） |
+| `tutorial_done` | 新手教学完成 |
+| `met_barkeeper` / `met_lillian` | NPC 对话状态 |
+| `alchemy_quest` / `mushroom_collected` / `quest_mushroom_done` | 任务 |
+
+---
+
+## 九、近期变动（渲染层迁移到 Godot）
+
+### 结构性迁移
+
+- **渲染层从 Textual 迁到 Godot 4.7**：`view/*.py` 的 Screen 栈 → `scenes/*.tscn` + `scripts/ui/*.gd` 的场景树；界面跳转从 `push_screen` 改为 `Fx.goto()` 黑场切换。
+- **逻辑层平移**：`engine/*.py` → `scripts/core/*.gd`（`game_engine` / `game_state` / `inventory_manager` / `save_manager` / `battle`），逻辑与伤害公式逐字对齐。
+- **抽出三层表现关注点**：
+  - `Palette`（scripts/ui/palette.gd）：所有颜色 + 剧情标签→BBCode，取代分散的 `text_format.gd`，与引擎解耦。
+  - `Fx`（autoload）：转场、入场动效、虚血、粒子、渐变背景。
+  - `FontManager`（autoload）：像素字体与字号档位。
+- **6 个界面共用外壳**：人物/物品/保存/读取/装备/设置 统一走 `Modal.tscn` + `GameModal`，另有商店/日记/确认框复用同一外壳。
+- **战斗系统三层落地**：数据层 `BattleManager`（core）/ 界面层 `BattleScene`（ui）/ 接线层 `game_play._open_battle`。
+- **数据位置**：数据已收进工程 `godot/data/`（运行时即 `res://data/`，`../data` 仅作兼容回退），见 §4.0。
+- **统一"鼠标 = 回车"**：装饰控件 IGNORE、RichTextLabel PASS、Button STOP；转场/苏醒/结局都能点击跳过。
+- **弹窗自适应**：随窗口等比缩放且永不溢出屏幕，内容内部滚动、底部按钮常驻（锁定内容高度下限，避免切换设置项时折叠）。
+- **血条重做**：主界面血条变细（`HpBar/SanBar` = 120×8），长度随最大值伸缩、上限 200px；低于阈值变色；掉血叠"虚血"残影（1.4s）。
+- **设置项精简**：删掉冗余的"侵蚀倍率"，历史记录上限显示修正为整数。
+- **系统按钮补齐 hover/pressed/focus 状态**（悬停青底深色字），空追踪任务面板透明度降到 45%。
+- **新增信号**：`InventoryManager.item_added`，用于"物品"按钮的粒子 + 呼吸提醒；日记未读提醒改为缓慢呼吸 + 一次性粒子。
+
+### 已修的小问题（本轮 code review）
+
+- 战斗 `[4] 道具` 是死按钮却标注了不存在的快捷键 → 文案改为「道具（未开放）」。
+- 转场独白打字计时把 BBCode 标签算进字数、带颜色的句子偏慢 → 改用真实可见字数。
+- 战斗叙事占位符替换路径不统一（`{name}`/`{dmg}` 只在部分分支生效）→ 统一走 `_fmt_narrative`，`get_narrative` 也并入。
+- 敌人眩晕跳过回合时不清防御冷却 → 眩晕时清冷却、保留待生效的防御。
+- 结局画面"返回主菜单"缺重入保护 → 加 `_went` 哨兵。
+
+### 仓库收尾与基础设施（本轮）
+
+- **Python/Textual 版清退**：`engine/` + `view/` + `launcher.py` + `engine_config.json` + `saves/` 全部从 `main` 删除，完整历史保留在 `python-legacy` 分支。仓库根目录现在只剩 `godot/`、`tools/` 与若干文档，不再有双份逻辑漂移的风险。
+- **数据收进工程**：`data/` → `godot/data/`（即 `res://data/`），导出打包会自动带上数据。
+- **启动期数据自检**：`GameEngine.validate_data()`，见 §4.0.1。
+- **核心逻辑自测**：新增 `godot/tests/`（零依赖，headless 可跑），固定住数据加载、条件判定、效果、背包、存档、战斗下限与装备这些纯逻辑。
+- **导出预设**：`godot/export_presets.cfg`（Windows Desktop，输出到 `build/`）。
+- **仓库根部清理**：`.gitignore` 去掉 Python 相关条目，加入 `build/`。
+
+### 迁移遗留
+
+- 旧设定文本多为占位符，**以 `自嗨产物.txt` 为准**。
+
+---
+
+## 十、进度 / 待规划
+
+> 本节是**唯一的进度与待做入口**（原 todo.txt 已并入此处）。勾选状态更新在这里改。
+
+### 10.1 已落地
+
+- ✅ **Flag 命名空间规范**：`FLAG_PREFIXES` + 写入校验，旧 flag 自动白名单。
+- ✅ **装备系统**：装备槽（weapon / armor / accessory）+ `equip()` / `unequip()`，物品栏可换装。
+- ✅ **商店与经济**：`shops.json` + 交易界面（买 / 卖，出售回收 40%）。
+- ✅ **丢弃 / 地面物品**：物品栏「背包 / 地上」分区，可丢可捡，按房间存 `state.ground`。
+- ✅ **消耗品使用**：`items.json` 的 `effect` 字段 + `use_item()`（满血拒用回血药）。
+- ✅ **睡觉回满**：`hp_to_max` / `san_to_max`，不再写死 +999。
+- ✅ **昼夜 / 时间（最小骨架）**：`game_day` / `game_time`、换房间 +1 小时、睡到次日早上。
+- ✅ **基础设施**：启动期数据自检（§4.0.1）、核心逻辑自测（`godot/tests/`）、Windows 导出预设；GameOver「假死」修复（回主菜单 `reset_game()`）。
+
+### 10.2 待做（按优先级）
+
+**玩法**
+
+- ⬜ **战斗道具**：`BattleScene` 的"道具"按钮是禁用的占位（未实现消耗品使用）。
+- ⬜ **炼金合成**：前置依赖经济与材料获取途径（莉莉安的采集任务已埋线）。
+- ⬜ **升级 / XP**：`enemies.json` 已有 `xp` 字段，战斗结算只展示、未真正用于升级。
+- ⬜ **技能系统**：目前只有普攻 / 防御；需技能 JSON + 战斗扩展 + UI 子菜单。
+- ⬜ **钟表类道具 / 房间**：给 `shows_time` 物品或 `timepiece` 房间，才能显示精确时间。
+- ⬜ **场景按时间变化**：描述 / 事件随昼夜切换。
+- ⬜ **打火机 / 火把获取**：物品已定义，但还没放进任何地方。
+- ⬜ **新手引导**：目前几乎没有；考虑融入剧情，需专门规划。
+
+**大件（波及面大）**
+
+- ⬜ **场景角色 / 怪物状态系统（Actor / Event 分离）**：当前靠全局 flag 硬控；目标是 `room_id → [actor_id]`、每个 actor 的独立状态、选项动态生成。
+- ⬜ **队伍 / 同伴 + 多人战斗**：需要队伍系统与 `BattleManager` 回合逻辑重写。前置：队友装备槽。
+- ⬜ **好感度 / 攻略**：NPC 好感度影响对话分支、入队、结局。对话系统需新增条件分支。
+
+### 10.3 工程 / 发布缺口
+
+- **自测覆盖面小**：`godot/tests/` 只固定了核心逻辑，界面层与文本质量仍靠人工 F5。
+- **没有 CI**：自测已经能在失败时返回非 0 退出码，但还没接到任何自动化流水线。
+- **音效**：`settings.sound_enabled` 已存在但无实现。
+- **数据质量**：启动期自检能查出"引用不存在""未知占位符""文本数对不上"，但查不出文笔与设定矛盾。
+- **文档同步**：本文件此前只描述 Python 版，现已改为以 Godot 为准。后续新增系统记得同步维护。

@@ -193,7 +193,9 @@ func _confirm_quit() -> void:
 
 ## ────────────────────────── 弹窗 ──────────────────────────
 
-func _make_modal(title: String, accent: Color, width: float, body_height: float) -> GameModal:
+## 实例化一个面板并入树。默认走右侧抽屉；确认框传 GameModal.MODE_CENTER 走居中弹窗。
+func _make_modal(title: String, accent: Color, width: float, body_height: float,
+		mode: String = GameModal.MODE_DRAWER) -> GameModal:
 	var modal := MODAL_SCENE.instantiate() as GameModal
 	add_child(modal)
 	modal.configure({
@@ -201,13 +203,17 @@ func _make_modal(title: String, accent: Color, width: float, body_height: float)
 		"accent": accent,
 		"width": width,
 		"body_height": body_height,
+		"mode": mode,
 	})
 	return modal
 
 
 func _push_modal(modal: GameModal) -> void:
 	if not _modal_stack.is_empty():
-		_modal_stack.back().input_blocked = true
+		var top: GameModal = _modal_stack.back()
+		top.input_blocked = true
+		if modal.mode == GameModal.MODE_DRAWER and top.mode == GameModal.MODE_DRAWER:
+			top.hide_for_stack()
 	_modal_stack.append(modal)
 	modal.closed.connect(_on_modal_closed.bind(modal))
 	modal.open()
@@ -218,11 +224,15 @@ func _on_modal_closed(modal: GameModal) -> void:
 	if idx != -1:
 		_modal_stack.remove_at(idx)
 	if not _modal_stack.is_empty():
-		_modal_stack.back().input_blocked = false
+		var top: GameModal = _modal_stack.back()
+		top.input_blocked = false
+		# 关掉抽屉 → 把被它顶下去的抽屉滑回来；关掉确认框 → 抽屉本来就还在
+		if modal.mode == GameModal.MODE_DRAWER and top.mode == GameModal.MODE_DRAWER:
+			top.show_from_stack()
 
 
 func _open_confirm(title: String, message: String, on_confirm: Callable, accent: Color) -> void:
-	var modal := _make_modal(title, accent, 460.0, 60.0)
+	var modal := _make_modal(title, accent, 460.0, 60.0, GameModal.MODE_CENTER)
 	modal.add_text(message)
 	modal.add_action("confirm", "[Y] 确认", accent)
 	modal.add_action("cancel", "[N] 取消")
@@ -237,7 +247,7 @@ func _open_confirm(title: String, message: String, on_confirm: Callable, accent:
 func _open_load() -> void:
 	if _btn_load.disabled:
 		return
-	var modal := _make_modal("读取存档", GameModal.ACCENT_GREEN, 620.0, 50.0)
+	var modal := _make_modal("读取存档", GameModal.ACCENT_GREEN, 560.0, 50.0)
 	modal.add_text("读取会覆盖当前未保存的进度。", GameModal.MUTED)
 	modal.action_pressed.connect(func(id: String) -> void:
 		if id.begins_with("slot:"):
@@ -268,7 +278,7 @@ func _do_load(slot: int) -> void:
 
 
 func _open_settings() -> void:
-	var modal := _make_modal("设置", GameModal.ACCENT_GOLD, 660.0, 420.0)
+	var modal := _make_modal("设置", GameModal.ACCENT_GOLD, 560.0, 420.0)
 	modal.action_pressed.connect(func(id: String) -> void:
 		match id:
 			"exit":
@@ -288,7 +298,7 @@ func _open_settings() -> void:
 
 func _fill_settings(modal: GameModal) -> void:
 	modal.configure({"title": "设置", "accent": GameModal.ACCENT_GOLD,
-		"width": 660.0, "body_height": 420.0})
+		"width": 560.0, "body_height": 420.0})
 	SettingsPanel.fill(modal)
 	modal.add_action("exit", "退出游戏", GameModal.ACCENT_PINK)
 	modal.add_action("save_close", "保存并关闭", GameModal.ACCENT_GOLD)

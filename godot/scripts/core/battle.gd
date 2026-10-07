@@ -46,6 +46,9 @@ var enemy_data: Dictionary = {}
 var enemy_narrative: Dictionary = {}
 
 var first_monster: bool = false
+## 这是不是"人生第一场战斗"。战斗开始时结算一次，供胜利叙事判断
+## 要不要带上新手提示（之后的战斗只报结果）。
+var is_first_battle: bool = false
 var player: Combatant = null
 var enemy: Combatant = null
 
@@ -67,6 +70,9 @@ func _init(p_engine: Node, p_enemy_id: String) -> void:
 	enemy_id = p_enemy_id
 	enemy_data = engine.get_enemy(p_enemy_id)
 	enemy_narrative = enemy_data.get("narrative", {})
+
+	# 先记下"这是不是第一场战斗"，再往下走（下面会把 first_monster_seen 置 true）
+	is_first_battle = not state.flags.get("first_monster_seen", false)
 
 	# 第一次见怪扣理智（只发生一次，用 flag 记录）
 	if not state.flags.get("first_monster_seen", false):

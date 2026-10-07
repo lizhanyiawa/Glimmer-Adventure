@@ -1,22 +1,16 @@
 [gd_scene load_steps=7 format=3]
 
-; ── 通用模态弹窗 ──
-; 一套外壳，吃下原项目 6 个 Screen：
-;   profile_screen / inventory_screen / save_game_screen
-;   load_game_screen / equipment_screen / global_settings
-; 它们的差异只有两处：中间内容(Body) 和 底部按钮(Footer)。
-; 外壳结构固定：遮罩(Dim) → 居中面板(Frame) → 标题 + 内容区 + 按钮区。
+; ── 通用面板外壳 ──
+; 一套外壳，吃下所有界面：人物 / 物品 / 装备 / 保存 / 读取 / 设置 / 商店 / 日记
+; 以及确认框、新建笔记。它们的差异只有两处：中间内容(Body) 和 底部按钮(Footer)。
 ;
-; Body 与 Footer 都是空容器，留给脚本运行时填充（第三步接 GDScript）。
-; 本版为「硬编码样例」，用 profile_screen 的字段填了一份真实内容，
-; 只用于确认弹窗的尺寸、边框、配色与按钮态，未接入引擎逻辑。
+; 结构固定：遮罩(Dim) → 舞台(Stage) → 面板(Frame) → 标题 + 内容区 + 按钮区。
+; Body 与 Footer 都是空容器，留给脚本运行时填充（scripts/ui/modal.gd）。
 ;
-; 脚本接入后需要改动的地方（按界面）：
-;   标题文字 / 标题颜色 ← Profile #ff007f / Save #ffaa00 / Load #00ff66
-;                          Equipment #ddaa00 / Inventory #66fcf1 / Settings #ffaa00
-;   边框颜色           ← 同上（改 Frame 的 panel StyleBox 的 border_color）
-;   面板宽度           ← 默认 640，Inventory / Equipment 原为 72 字符宽(最宽)
-;   内容区高度         ← 默认 220，Inventory 原为 24 行(更高)
+; 面板有两种摆法，由脚本按 mode 决定（Stage 是中性容器，不参与定位）：
+;   MODE_CENTER（居中弹窗）—— 确认框 / 输入框，锚点居中、尺寸随内容
+;   MODE_DRAWER（右侧抽屉）—— 人物 / 物品 / 设置等主面板，贴右侧、撑满整高、滑入滑出
+; 这里预置的是「居中」锚点，运行时会按 mode 重写。
 
 [ext_resource type="Script" path="res://scripts/ui/modal.gd" id="1_modal"]
 
@@ -83,7 +77,9 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0, 0, 0, 0.72)
 
-[node name="Center" type="CenterContainer" parent="."]
+; 中性舞台：只负责铺满整屏，定位全部交给脚本写在 Frame 的锚点上，
+; 这样同一个 Frame 既能居中（确认框），也能贴右撑满（抽屉）。
+[node name="Stage" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -92,41 +88,49 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Frame" type="PanelContainer" parent="Center"]
+[node name="Frame" type="PanelContainer" parent="Stage"]
 custom_minimum_size = Vector2(640, 0)
-layout_mode = 2
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+grow_horizontal = 2
+grow_vertical = 2
 theme_override_styles/panel = SubResource("SB_frame")
 
-[node name="Margin" type="MarginContainer" parent="Center/Frame"]
+[node name="Margin" type="MarginContainer" parent="Stage/Frame"]
 layout_mode = 2
 theme_override_constants/margin_left = 18
 theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 18
 theme_override_constants/margin_bottom = 16
 
-[node name="VBox" type="VBoxContainer" parent="Center/Frame/Margin"]
+[node name="VBox" type="VBoxContainer" parent="Stage/Frame/Margin"]
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="Title" type="Label" parent="Center/Frame/Margin/VBox"]
+[node name="Title" type="Label" parent="Stage/Frame/Margin/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0, 0.498039, 1)
 theme_type_variation = &"Heading"
 text = "人物详情"
 horizontal_alignment = 1
 
-[node name="BodyScroll" type="ScrollContainer" parent="Center/Frame/Margin/VBox"]
+[node name="BodyScroll" type="ScrollContainer" parent="Stage/Frame/Margin/VBox"]
 custom_minimum_size = Vector2(0, 220)
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="Body" type="VBoxContainer" parent="Center/Frame/Margin/VBox/BodyScroll"]
+[node name="Body" type="VBoxContainer" parent="Stage/Frame/Margin/VBox/BodyScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 3
 theme_override_constants/separation = 6
 
-[node name="BodyText" type="RichTextLabel" parent="Center/Frame/Margin/VBox/BodyScroll/Body"]
+[node name="BodyText" type="RichTextLabel" parent="Stage/Frame/Margin/VBox/BodyScroll/Body"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/default_color = Color(0.698039, 0.698039, 0.698039, 1)
@@ -144,11 +148,11 @@ text = "名字: 无名
 fit_content = true
 scroll_active = false
 
-[node name="Footer" type="VBoxContainer" parent="Center/Frame/Margin/VBox"]
+[node name="Footer" type="VBoxContainer" parent="Stage/Frame/Margin/VBox"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="BtnEquip" type="Button" parent="Center/Frame/Margin/VBox/Footer"]
+[node name="BtnEquip" type="Button" parent="Stage/Frame/Margin/VBox/Footer"]
 custom_minimum_size = Vector2(0, 36)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.866667, 0.666667, 0, 1)
@@ -162,7 +166,7 @@ theme_override_styles/focus = SubResource("SB_btn")
 theme_override_styles/disabled = SubResource("SB_btn_disabled")
 text = "[E] 装备"
 
-[node name="BtnClose" type="Button" parent="Center/Frame/Margin/VBox/Footer"]
+[node name="BtnClose" type="Button" parent="Stage/Frame/Margin/VBox/Footer"]
 custom_minimum_size = Vector2(0, 36)
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)

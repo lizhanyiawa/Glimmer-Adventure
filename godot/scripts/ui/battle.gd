@@ -429,7 +429,7 @@ func _refresh_bars(player_dmg: int = -1, enemy_dmg: int = -1) -> void:
 
 
 func _append_history(text: String) -> void:
-	_history.append_text(Palette.render(text) + "\n")
+	_history.append_text(Palette.render_static(text) + "\n")
 
 
 ## 显示一段文本：先打字，打完等玩家确认，确认后执行 cont_callback
@@ -595,7 +595,9 @@ func _end_battle() -> void:
 func _show_victory(rewards: Dictionary) -> void:
 	_set_action_enabled(false)
 
-	var victory_msg := _bm.get_narrative("victory", "战斗胜利！")
+	# 第一场战斗的胜利叙事里带着新手提示，之后的战斗只报一句结果
+	var victory_key := "victory_first" if _bm.is_first_battle else "victory"
+	var victory_msg := _bm.get_narrative(victory_key, _bm.get_narrative("victory", "战斗胜利！"))
 	var lines: Array = [victory_msg]
 
 	var reward_lines: Array = ["[color=#ffdd00]━━ 战利品 ━━[/color]"]

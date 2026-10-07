@@ -150,7 +150,6 @@ func sparkle(node: Control, color: Color, amount := 14) -> void:
 	p.scale_amount_min = 1.0
 	p.scale_amount_max = 2.6
 	p.color = color
-	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	node.add_child(p)
 	p.emitting = true
 

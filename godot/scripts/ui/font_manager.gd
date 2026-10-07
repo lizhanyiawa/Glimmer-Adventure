@@ -38,10 +38,15 @@ const SIZED_TYPES: Dictionary = {
 	"RichTextLabel": "normal_font_size",
 }
 
+## 像素字体没有粗体字面，只能用变体合成加粗；强度太大会糊成一团
+const BOLD_EMBOLDEN := 0.5
+
 var _theme: Theme = null
 var _fonts: Dictionary = {}       ## 原始字体
 var _bg_fonts: Dictionary = {}    ## 行高对齐后的正文字体（按当前字号档位算）
+var _bg_bolds: Dictionary = {}    ## 与 _bg_fonts 对应的粗体（给 RichTextLabel 的 [b]）
 var _hd_fonts: Dictionary = {}    ## 行高对齐后的标题字体
+var _hd_bolds: Dictionary = {}    ## 与 _hd_fonts 对应的粗体
 var _current: String = "system"
 var _level: int = 1
 
@@ -76,13 +81,21 @@ func apply_level(level: int) -> void:
 	var head := atom + HEADING_EXTRA
 
 	# 先把三款字体的行高对齐（理由见 _align_to_tallest），再挂到主题上
-	_bg_fonts = _align_to_tallest(atom)
-	_hd_fonts = _align_to_tallest(head)
+	var body: Dictionary = _align_to_tallest(atom)
+	_bg_fonts = body["normal"]
+	_bg_bolds = body["bold"]
+	var heading: Dictionary = _align_to_tallest(head)
+	_hd_fonts = heading["normal"]
+	_hd_bolds = heading["bold"]
 
 	_theme.default_font_size = atom
 	# 显式给几个基础控件定字号，免得它们各自回退到 Godot 内置主题的 16px
 	for type in SIZED_TYPES:
 		_theme.set_font_size(SIZED_TYPES[type], type, atom)
+	# RichTextLabel 的粗体/斜体是独立字号槽位，不跟着 normal_font_size 走
+	_theme.set_font_size("bold_font_size", "RichTextLabel", atom)
+	_theme.set_font_size("italics_font_size", "RichTextLabel", atom)
+	_theme.set_font_size("bold_italics_font_size", "RichTextLabel", atom)
 	# 标题走主题里的 "Heading" 类型变体，Modal.tscn / GamePlay.tscn 的标题都挂了它
 	_theme.set_font_size("font_size", "Heading", head)
 
@@ -99,11 +112,21 @@ func _apply_fonts() -> void:
 	_theme.default_font = _bg_fonts.get(_current, raw)
 	_theme.set_font("font", "Heading", _hd_fonts.get(_current, raw))
 
+	# RichTextLabel 的 [b] / [i] 是去主题里找 bold_font / italics_font，
+	# 不配就静默退回普通字面——"[b] 没作用"就是这么来的。
+	_theme.set_font("bold_font", "RichTextLabel", _bg_bolds.get(_current, raw))
+	_theme.set_font("bold_italics_font", "RichTextLabel", _bg_bolds.get(_current, raw))
+	_theme.set_font("italics_font", "RichTextLabel", _bg_fonts.get(_current, raw))
+
 
 ## 三款字体在同一个字号下行高并不一样（12px 时：系统 17 / 方舟 16 / 最像素 12）。
 ## 容器是按内容的"最小高度"撑开的，所以一换字体面板就被撑大或缩回去，界面跟着跳。
 ## 这里以最高的那款为准，给矮的字体在行底补一点空，让三者高度一致。
 ## 补在行底而不是行顶：多数字段是顶部对齐，这样文字的落点不变。
+##
+## 返回 {"normal": {...}, "bold": {...}} 两份：粗体那份额外换字面。
+## 为什么要单独做一份粗体：RichTextLabel 的 [b] 是去主题里找 bold_font，
+## 不配就静默退回普通字面，"加粗"看起来像完全没生效。
 func _align_to_tallest(size: int) -> Dictionary:
 	var target := 0.0
 	for key in _fonts:
@@ -111,16 +134,37 @@ func _align_to_tallest(size: int) -> Dictionary:
 		if f != null:
 			target = maxf(target, f.get_height(size))
 
-	var out := {}
+	var normal := {}
+	var bold := {}
 	for key in _fonts:
 		var f: Font = _fonts[key]
 		if f == null:
 			continue
-		var v := FontVariation.new()
-		v.base_font = f
-		v.spacing_bottom = int(roundf(target - f.get_height(size)))
-		out[key] = v
-	return out
+		var pad := int(roundf(target - f.get_height(size)))
+		normal[key] = _variation(f, pad)
+		bold[key] = _variation(_bold_base(f), pad, BOLD_EMBOLDEN)
+
+	return {"normal": normal, "bold": bold}
+
+
+## 造一份字体变体：只做行高补白，可选合成加粗
+func _variation(base: Font, pad: int, embolden: float = 0.0) -> FontVariation:
+	var v := FontVariation.new()
+	v.base_font = base
+	v.spacing_bottom = pad
+	if embolden > 0.0:
+		v.variation_embolden = embolden
+	return v
+
+
+## 粗体用的底字：系统字体能直接要 700 字重（真粗体），像素字体没有粗体字面，
+## 原样返回、由调用方用 variation_embolden 合成。
+func _bold_base(f: Font) -> Font:
+	if f is SystemFont:
+		var sf := (f as SystemFont).duplicate() as SystemFont
+		sf.font_weight = 700
+		return sf
+	return f
 
 
 func current_level() -> int:

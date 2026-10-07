@@ -18,6 +18,7 @@ signal time_changed(day: int, hour: int)  ## 游戏内时间变化
 ## flag 命名空间前缀。新增 flag 必须遵循 [前缀]_[子域]_[含义]，避免命名冲突。
 const FLAG_PREFIXES: Array = [
 	"loc_", "battle_", "npc_", "item_", "story_", "q_", "sys_", "char_", "san_",
+	"codex_",
 ]
 
 const DIRECT_STATS: Array = [
@@ -68,6 +69,8 @@ var _rooms_db: Dictionary = {}
 var _dialogues_db: Dictionary = {}
 var _shops_db: Dictionary = {}
 var _enemies_db: Dictionary = {}
+## 百科（游戏内 wiki）：分类与词条都在 codex.json，词条正文是一整段 BBCode 文本
+var _codex_db: Dictionary = {}
 var _legacy_flag_whitelist: Dictionary = {}
 
 var _data_root: String = ""
@@ -109,6 +112,7 @@ func _load_all_data() -> void:
 	_load_dialogues_db()
 	_load_shops_db()
 	_load_enemies_db()
+	_load_codex_db()
 	_init_flag_whitelist()
 
 
@@ -179,6 +183,11 @@ func _load_enemies_db() -> void:
 		enemy["description"] = text_data.get("description", "")
 		enemy["narrative"] = text_data.get("narrative", {})
 		enemy["san_text"] = text_data.get("san_text", "")
+
+
+## 百科数据：{categories: [...], entries: [...]}。纯文本内容，不再拆逻辑/文本两层。
+func _load_codex_db() -> void:
+	_codex_db = _read_json(_data_root.path_join("codex.json"))
 
 
 func _init_default_inventory() -> void:
@@ -376,6 +385,39 @@ func get_shop(shop_id: String) -> Dictionary:
 	return shop
 
 
+## ────────────────────────── 百科 ──────────────────────────
+
+## 百科分类列表，形如 [{id, name}, ...]
+func get_codex_categories() -> Array:
+	var cats = _codex_db.get("categories", [])
+	return cats if cats is Array else []
+
+
+## 百科全部词条（不筛选、不判定解锁）
+func get_codex_entries() -> Array:
+	var entries = _codex_db.get("entries", [])
+	return entries if entries is Array else []
+
+
+## 词条是否已解锁：没有 unlock 字段视为开局就知道，否则看对应 flag
+func is_codex_unlocked(entry: Dictionary) -> bool:
+	var key := str(entry.get("unlock", ""))
+	if key.is_empty():
+		return true
+	return bool(get_flag(key, false))
+
+
+## 已解锁 / 总数，给界面显示进度用
+func get_codex_progress() -> Array:
+	var total := 0
+	var unlocked := 0
+	for entry in get_codex_entries():
+		total += 1
+		if is_codex_unlocked(entry):
+			unlocked += 1
+	return [unlocked, total]
+
+
 ## ────────────────────────── Flag ──────────────────────────
 
 ## 校验 flag 名称是否符合命名空间规范
@@ -429,24 +471,62 @@ func check_option_visible(option: Dictionary) -> String:
 	return "visible"
 
 
-## 按条件选取房间描述（description_alt 里第一条满足条件的优先）
+## 选项的「焕新条件」是否成立。语法与 require / exclude 完全一致
+## （flags / stats / items），写在选项自己的 relight 字段里：
+##
+##   "relight": {
+##     "require": { "items": { "has": "cellar_chest_key" } },
+##     "exclude": { "flags": { "chest_opened": true } }
+##   }
+##
+## 用途：查看类选项去过一次就会变暗，但"再看一眼"有时候会有新东西——
+## 拿到钥匙之后那只铁皮木箱就值得再翻一次。条件成立时按钮重新亮起，
+## 条件解除（箱子开过了）又暗回去，所以是双向的，不是一次性解锁。
+func is_option_relit(option: Dictionary) -> bool:
+	var relight: Dictionary = option.get("relight", {})
+	if relight.is_empty():
+		return false
+	var probe := {
+		"require": relight.get("require", {}),
+		"exclude": relight.get("exclude", {}),
+	}
+	return check_option_visible(probe) == "visible"
+
+
+## 按条件选取房间描述（description_alt 里第一条满足条件的优先）。
+##
+## if 支持的条件键（多个键之间是 AND）：
+##   flags  —— {flag名: 期望值}
+##   stats  —— {属性名: 最低值}
+##   period —— 时段名，或时段名数组（数组内是 OR）。时段名取自 TIME_OF_DAY，
+##             如 "清晨" / ["黄昏", "夜晚"]。没有钟表也能按"大致时段"换文案。
 func resolve_room_description(room_data: Dictionary) -> String:
 	for alt in room_data.get("description_alt", []):
 		var cond: Dictionary = alt.get("if", {})
-		var matched := true
-		for flag_key in cond.get("flags", {}):
-			if state.flags.get(flag_key, false) != cond["flags"][flag_key]:
-				matched = false
-				break
-		if not matched:
-			continue
-		for stat_key in cond.get("stats", {}):
-			if state.stats.get(stat_key, 0) < cond["stats"][stat_key]:
-				matched = false
-				break
-		if matched:
+		if _room_alt_matches(cond):
 			return alt.get("text", room_data.get("description", ""))
 	return room_data.get("description", "")
+
+
+## 一段 description_alt 的条件是否成立
+func _room_alt_matches(cond: Dictionary) -> bool:
+	for flag_key in cond.get("flags", {}):
+		if state.flags.get(flag_key, false) != cond["flags"][flag_key]:
+			return false
+	for stat_key in cond.get("stats", {}):
+		if state.stats.get(stat_key, 0) < cond["stats"][stat_key]:
+			return false
+	if cond.has("period") and not _period_matches(cond["period"]):
+		return false
+	return true
+
+
+## 当前时段是否命中 period 条件（字符串或字符串数组，数组内 OR）
+func _period_matches(period) -> bool:
+	var now := _time_of_day_name()
+	if period is Array:
+		return (period as Array).has(now)
+	return str(period) == now
 
 
 ## ────────────────────────── 效果应用 ──────────────────────────

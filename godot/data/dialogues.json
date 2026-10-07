@@ -39,7 +39,11 @@
       {
         "text": "【对话】询问关于这里的事情",
         "target_dialogue": "village_tavern_barkeeper_origin",
-        "effects": {}
+        "effects": {
+          "flags": {
+            "met_barkeeper": true
+          }
+        }
       },
       {
         "text": "【离开】谢谢，我先到处转转",
@@ -58,12 +62,20 @@
       {
         "text": "【回答】是的，我从另一个世界来",
         "target_dialogue": "village_tavern_barkeeper_stranger",
-        "effects": {}
+        "effects": {
+          "flags": {
+            "talked_stranger": true
+          }
+        }
       },
       {
         "text": "【回答】我不想谈这个",
         "target_dialogue": "village_tavern_barkeeper_world",
-        "effects": {}
+        "effects": {
+          "flags": {
+            "talked_world": true
+          }
+        }
       }
     ]
   },
@@ -73,7 +85,25 @@
       {
         "text": "【对话】这个世界是怎么回事？",
         "target_dialogue": "village_tavern_barkeeper_world",
-        "effects": {}
+        "exclude": {
+          "flags": {
+            "talked_world": true
+          }
+        },
+        "effects": {
+          "flags": {
+            "talked_world": true
+          }
+        }
+      },
+      {
+        "text": "【离开】谢谢，我去找莉莉安",
+        "target_room": "village_tavern",
+        "effects": {
+          "flags": {
+            "met_barkeeper": true
+          }
+        }
       }
     ]
   },
@@ -202,18 +232,13 @@
         "target_room": "village_alchemy",
         "effects": {
           "items": {
-            "add": [
-              "healing_potion",
-              "healing_potion"
-            ]
+            "add": ["healing_potion", "healing_potion"]
           },
           "flags": {
             "quest_mushroom_done": true
           },
           "tasks": {
-            "complete": [
-              "quest_mushroom"
-            ]
+            "complete": ["quest_mushroom"]
           }
         }
       }

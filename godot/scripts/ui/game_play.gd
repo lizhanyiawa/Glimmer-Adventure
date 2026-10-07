@@ -34,6 +34,12 @@ const STATS_NAMES: Dictionary = {
 @onready var _tracked_panel: PanelContainer = $Root/Layout/MainViewport/RightPanel/TrackedTask
 @onready var _tracked_label: Label = $Root/Layout/MainViewport/RightPanel/TrackedTask/TrackedLabel
 
+## 整屏色调要改色的几块面板（底色 + 描边）
+@onready var _bg: ColorRect = $Bg
+@onready var _status_panel: PanelContainer = $Root/Layout/StatusBar
+@onready var _story_panel: PanelContainer = $Root/Layout/MainViewport/StoryBox
+@onready var _history_panel: PanelContainer = $Root/Layout/MainViewport/RightPanel/HistoryBox
+
 @onready var _option_grid: GridContainer = $Root/Layout/BottomConsole/OptionGrid
 @onready var _btn_profile: Button = $Root/Layout/BottomConsole/SystemPanel/LeftButtons/BtnProfile
 @onready var _btn_inventory: Button = $Root/Layout/BottomConsole/SystemPanel/LeftButtons/BtnInventory
@@ -41,6 +47,7 @@ const STATS_NAMES: Dictionary = {
 @onready var _btn_settings: Button = $Root/Layout/BottomConsole/SystemPanel/LeftButtons/BtnSettings
 @onready var _btn_diary: Button = $Root/Layout/BottomConsole/SystemPanel/LeftButtons/BtnDiary
 @onready var _btn_shop: Button = $Root/Layout/BottomConsole/SystemPanel/RightButtons/BtnShop
+@onready var _btn_codex: Button = $Root/Layout/BottomConsole/SystemPanel/RightButtons/BtnCodex
 
 ## 文字速度档位 → 每个字多少秒。取值与 Python 版 engine/effects.py 的
 ## SPEED_PRESETS、以及 battle.gd 完全一致，战斗内外的手感才统一。
@@ -53,6 +60,20 @@ var _option_buttons: Array[Button] = []
 ## 每个选项按钮里那个负责显示文字的子 Label。按钮本身 text 留空、
 ## 由 Label 自动换行——否则长文本会把 Button 的最小宽度撑开，把整列挤变形。
 var _option_labels: Array[Label] = []
+## 每个选项按钮一份独立的 normal / hover 样式副本，按动作类型改描边与悬停底色
+var _option_styles: Array[StyleBoxFlat] = []
+var _option_hover_styles: Array[StyleBoxFlat] = []
+## 每个选项按钮当前的类型色（悬停/常态的文字色都用它）
+var _option_type_colors: Array[Color] = []
+
+## 整屏色调：保存面板样式的原始底色，退出特殊状态时好还原
+var _tone_panels: Array = []
+## 系统按钮的 normal 样式（只跟着整屏色调改底色）
+var _sys_styles: Array = []
+## 正在跑的整屏换调补间。重算前要先 kill，否则两条会抢同一个颜色属性
+var _tone_tween: Tween = null
+## 氛围粒子，跟着整屏色调一起换颜色
+var _ambient: CPUParticles2D = null
 
 ## 本次正文是否还在逐字显示（此时点击 / 回车 = 快进）
 var _typing := false
@@ -90,6 +111,9 @@ var _inv_detail: RichTextLabel = null
 ## 当前分区："bag"（背包+已装备）/ "ground"（本房间地上）
 var _inv_tab: String = "bag"
 var _inv_tab_btns: Array[Button] = []
+## 当前分类筛选（对应 INV_FILTERS 的 id），默认「全部」
+var _inv_filter: String = "all"
+var _inv_filter_btns: Array[Button] = []
 ## 详情下方那一排动态操作按钮（装备/卸下、使用、丢弃、捡起）
 var _inv_actions: HBoxContainer = null
 ## 操作反馈行：丢弃/使用/装备之后在这里给一句提示
@@ -118,10 +142,26 @@ var _diary_entries: Array = []
 var _diary_selected: int = 0
 var _diary_track_btn: Button = null
 var _diary_delete_btn: Button = null
+## 日记当前分类筛选（对应 DIARY_FILTERS 的 id），默认「全部」
+var _diary_filter: String = "all"
+var _diary_filter_btns: Array[Button] = []
 
-## 商店 / 日记界面的强调色（沿用弹窗那套配色）
+## 百科界面状态（列表 + 正文 + 分类筛选）
+var _codex_modal: GameModal = null
+var _codex_list_box: VBoxContainer = null
+var _codex_detail: RichTextLabel = null
+var _codex_entries: Array = []
+var _codex_selected: int = 0
+var _codex_filter: String = "all"
+var _codex_filter_btns: Array[Button] = []
+
+## 商店 / 日记 / 百科界面的强调色（沿用弹窗那套配色）
 const ACCENT_SHOP := Palette.GOLD                     # #ffaa00 金（商店）
 const ACCENT_DIARY := Palette.AMBER                   # #e6b800 黄（日记）
+const ACCENT_CODEX := Palette.BLUE                    # #5aa9ff 蓝（百科）
+
+## 整屏换调（常态青 ↔ 对话绿 / 濒死红 / 理智紫 / 重伤琥珀）的过渡时长
+const TONE_FADE := 0.35
 
 ## 血条 / 理智条的填充样式（运行时按比例改颜色）
 var _hp_fill: StyleBoxFlat = null
@@ -144,9 +184,20 @@ func _ready() -> void:
 			# 铺满按钮：Button 不是容器，不会自动给子节点排版
 			label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 			_option_labels.append(label)
+			# 每个按钮一份独立的 normal / hover 样式副本，之后按动作类型改色
+			# 才不会互相串（主题里的样式是所有按钮共用的同一份资源）
+			var normal_sb := child.get_theme_stylebox("normal").duplicate() as StyleBoxFlat
+			var hover_sb := child.get_theme_stylebox("hover").duplicate() as StyleBoxFlat
+			child.add_theme_stylebox_override("normal", normal_sb)
+			child.add_theme_stylebox_override("focus", normal_sb)
+			child.add_theme_stylebox_override("hover", hover_sb)
+			child.add_theme_stylebox_override("pressed", hover_sb)
+			_option_styles.append(normal_sb)
+			_option_hover_styles.append(hover_sb)
+			_option_type_colors.append(Palette.OPTION_TYPE_DEFAULT)
 			child.text = ""
 			child.pressed.connect(_on_option_pressed.bind(index))
-			# 悬停时把文字换成深色（按钮底色会变成青色），禁用时用灰色
+			# 悬停时把文字换成深色（按钮底色会变成该选项的类型色），禁用时用灰色
 			child.mouse_entered.connect(_on_option_hover.bind(index, true))
 			child.mouse_exited.connect(_on_option_hover.bind(index, false))
 
@@ -156,7 +207,9 @@ func _ready() -> void:
 	_btn_settings.pressed.connect(_open_settings)
 	_btn_diary.pressed.connect(_open_diary)
 	_btn_shop.pressed.connect(_open_room_shop)
+	_btn_codex.pressed.connect(_open_codex)
 	_style_system_buttons()
+	_collect_tone_styles()
 	# 背包有新东西（购买 / 掉落 / 剧情奖励）就让"物品"按钮被注意到
 	GameEngine.inv_mgr.item_added.connect(_on_item_added)
 
@@ -171,8 +224,8 @@ func _ready() -> void:
 	GameEngine.time_changed.connect(_on_time_changed)
 
 	# 背景氛围粒子：插在底色块之后、内容之前，粒子才会在"后面"
-	var particles := Fx.add_ambient(self, Color(0.27, 0.95, 1.0, 0.10), 30)
-	move_child(particles, 1)
+	_ambient = Fx.add_ambient(self, Color(Palette.CYAN_DEEP, 0.10), 30)
+	move_child(_ambient, 1)
 
 	# 点击 = 快进：把装饰性容器全部放行，点击才会落到本节点的 _gui_input。
 	# Button 保持 STOP（它们要能点中），其余 Control 一律 IGNORE。
@@ -191,7 +244,7 @@ func _ready() -> void:
 ## 和整套终端青配色对不上；补齐之后就与选项按钮的表现一致了。
 ## 悬停时底色变青，所以文字要跟着压成深色，否则糊在一起。
 func _style_system_buttons() -> void:
-	for button in [_btn_profile, _btn_inventory, _btn_save, _btn_settings, _btn_diary, _btn_shop]:
+	for button in [_btn_profile, _btn_inventory, _btn_save, _btn_settings, _btn_diary, _btn_shop, _btn_codex]:
 		var normal := button.get_theme_stylebox("normal").duplicate() as StyleBoxFlat
 
 		var accent := StyleBoxFlat.new()
@@ -207,6 +260,71 @@ func _style_system_buttons() -> void:
 		button.add_theme_stylebox_override("focus", normal)
 		button.add_theme_color_override("font_hover_color", Palette.BG)
 		button.add_theme_color_override("font_pressed_color", Palette.BG)
+
+
+## 把要跟着"整屏色调"走的面板样式取成独立实例，并记下它们的原始底色，
+## 这样退出特殊状态（对话结束 / 血量回满）时能精确还原，不会残留绿色。
+func _collect_tone_styles() -> void:
+	for panel in [_status_panel, _story_panel, _history_panel]:
+		var sb := panel.get_theme_stylebox("panel").duplicate() as StyleBoxFlat
+		panel.add_theme_stylebox_override("panel", sb)
+		_tone_panels.append({"sb": sb, "bg": sb.bg_color})
+	for button in [_btn_profile, _btn_inventory, _btn_save, _btn_settings, _btn_diary, _btn_shop, _btn_codex]:
+		var sb := button.get_theme_stylebox("normal").duplicate() as StyleBoxFlat
+		button.add_theme_stylebox_override("normal", sb)
+		_sys_styles.append({"sb": sb, "bg": sb.bg_color})
+
+
+## 按当前处境给整屏定调（对应 Python 版 game_menu.py 的 _update_ui_colors）。
+## 优先级：对话中（绿）> 濒死（红）> 理智 < 30（紫）> 重伤（琥珀）> 常态（青）。
+##
+## 面板底色不是直接换成纯色，而是往"整屏底色"靠一半，保留原本的深浅层次，
+## 只看得出"整体偏绿/偏红"，不至于变成一块死色。
+func _update_ui_colors() -> void:
+	var stats: Dictionary = GameEngine.state.stats
+	var hp_ratio := float(int(stats.get("hp", 100))) / float(maxi(1, int(stats.get("max_hp", 100))))
+	var san := int(stats.get("san", 100))
+	var in_dialogue := not str(GameEngine.state.dialogue_id).is_empty()
+
+	var screen_bg := Palette.BG
+	var border := Palette.CYAN_DEEP
+	var active := false
+	if in_dialogue:
+		screen_bg = Palette.BG_DIALOGUE
+		border = Palette.GREEN
+		active = true
+	elif hp_ratio < 0.1:
+		screen_bg = Palette.BG_DANGER
+		border = Palette.RED
+		active = true
+	elif san < 30:
+		screen_bg = Palette.BG_MADNESS
+		border = Palette.VIOLET
+		active = true
+	elif hp_ratio < 0.3:
+		screen_bg = Palette.BG_HURT
+		border = Palette.GOLD
+		active = true
+
+	# 整屏换调走补间，不然从常态青一下跳到"对话绿/濒死红"太生硬。
+	# 每次重算先掐掉上一条，避免两条补间抢同一个颜色属性。
+	if _tone_tween != null and _tone_tween.is_valid():
+		_tone_tween.kill()
+	_tone_tween = create_tween().set_parallel(true)
+	_tone_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+
+	_tone_tween.tween_property(_bg, "color", screen_bg, TONE_FADE)
+	for entry in _tone_panels:
+		var sb: StyleBoxFlat = entry["sb"]
+		var orig: Color = entry["bg"]
+		_tone_tween.tween_property(sb, "bg_color", orig.lerp(screen_bg, 0.5) if active else orig, TONE_FADE)
+		_tone_tween.tween_property(sb, "border_color", border, TONE_FADE)
+	for entry in _sys_styles:
+		var sb: StyleBoxFlat = entry["sb"]
+		var orig: Color = entry["bg"]
+		_tone_tween.tween_property(sb, "bg_color", orig.lerp(screen_bg, 0.5) if active else orig, TONE_FADE)
+	if _ambient != null and is_instance_valid(_ambient):
+		_tone_tween.tween_property(_ambient, "color", Color(border, 0.10), TONE_FADE)
 
 
 ## 递归把装饰性 Control 放行，让空白处的点击继续上传到本节点。
@@ -270,6 +388,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			accept_event()
 			_open_settings()
 			return
+		KEY_C:
+			accept_event()
+			_open_codex()
+			return
 
 	var index := -1
 	match event.keycode:
@@ -296,6 +418,11 @@ func load_current_room() -> void:
 
 	var room_id: String = GameEngine.state.room_id
 	var dialogue_id: String = GameEngine.state.dialogue_id
+
+	# 记下"这个地方来过了"：别处的「查看类」选项指向已到过的房间时会变暗，
+	# 一眼就能看出哪些是已经翻过的角落。
+	if not room_id.is_empty():
+		GameEngine.set_flag("loc_visited_%s" % room_id, true)
 
 	# 有对话就用对话节点，否则退回房间节点
 	var node_data: Dictionary = {}
@@ -331,13 +458,13 @@ func load_current_room() -> void:
 		else:
 			full_text = "【 %s 】\n\n%s" % [speaker, dialogue_text]
 			_append_history("[color=#66fcf1][b]【 %s 】[/b][/color]" % speaker)
-			_append_history(Palette.render(dialogue_text))
+			_append_history(Palette.render_static(dialogue_text))
 	else:
 		var title: String = node_data.get("title", room_id)
 		var story_text: String = GameEngine.resolve_room_description(node_data)
 		full_text = "【 %s 】\n\n%s" % [title, story_text]
 		_append_history("\n[color=#ffffff][b]【 %s 】[/b][/color]" % title)
-		_append_history(Palette.render(story_text))
+		_append_history(Palette.render_static(story_text))
 
 	# 打字机逐字显示，打完再把选项亮出来——和 Python 版
 	# （text_type 完成后才 refresh_options）保持一致
@@ -443,6 +570,9 @@ func _refresh_status_bar() -> void:
 	_mind_label.text = "INT: %d   AGI: %d" % [int(stats.get("intelligence", 0)), int(stats.get("agility", 0))]
 	_corruption_label.text = "COR: %d%%" % int(stats.get("corruption", 0))
 
+	# 状态一变（掉血 / 扣理智 / 进对话）整屏色调跟着走
+	_update_ui_colors()
+
 
 ## 血条/理智条：设值 + 按比例取色（高=青、中=琥珀、低=红，与 Python 版一致）。
 ## 掉血时叠一层"虚血"残影，让条不是一步跳到新值。
@@ -541,7 +671,22 @@ func _set_option_text(index: int, text: String) -> void:
 	if index < 0 or index >= _option_labels.size():
 		return
 	_option_labels[index].text = text
+	_apply_option_type_color(index, text)
 	_apply_option_color(index, _option_buttons[index].is_hovered())
+
+
+## 按动作类型给按钮定色：normal 换描边色，hover/pressed 直接拿类型色当底色。
+## 类型取自文字里的「【探索】」这类前缀，配色表在 Palette.OPTION_TYPE_COLORS。
+func _apply_option_type_color(index: int, text: String) -> void:
+	if index < 0 or index >= _option_styles.size():
+		return
+	var color := Palette.option_type_color(text)
+	_option_type_colors[index] = color
+	# 已经探索过的选项：描边也压暗一档，和文字一起表示"这里翻过了"
+	var border_color: Color = color.darkened(0.45) if _option_explored(index) else color
+	_option_styles[index].border_color = border_color
+	_option_hover_styles[index].bg_color = color
+	_option_hover_styles[index].border_color = color
 
 
 func _on_option_hover(index: int, entered: bool) -> void:
@@ -558,8 +703,33 @@ func _apply_option_color(index: int, hovered: bool) -> void:
 		label.add_theme_color_override("font_color", Palette.DISABLED_FG)
 	elif hovered:
 		label.add_theme_color_override("font_color", Palette.BG)
+	elif _option_explored(index):
+		var explored_color: Color = _option_type_colors[index]
+		label.add_theme_color_override("font_color", explored_color.darkened(0.45))
 	else:
-		label.add_theme_color_override("font_color", Palette.CYAN)
+		label.add_theme_color_override("font_color", _option_type_colors[index])
+
+
+## 这个选项是不是"已经翻过了"：查看类动作 + 它指向的房间已经到过。
+##
+## 但选项自己写了 relight 条件、且条件成立时，说明"再看一眼有新东西"——
+## 这时候即使去过也要重新亮起来（拿到地窖钥匙之后的铁皮木箱就是这种）。
+## 只有可选状态的选项才算——灰显占位本来就暗，不必再压一档。
+func _option_explored(index: int) -> bool:
+	if index < 0 or index >= _compacted_options.size():
+		return false
+	var entry: Dictionary = _compacted_options[index]
+	if entry.get("disabled", false):
+		return false
+	var option: Dictionary = entry.get("option", {})
+	if not Palette.option_is_explore(str(option.get("text", ""))):
+		return false
+	var target := str(option.get("target_room", ""))
+	if target.is_empty() or target == str(GameEngine.state.room_id):
+		return false
+	if GameEngine.is_option_relit(option):
+		return false
+	return bool(GameEngine.get_flag("loc_visited_%s" % target, false))
 
 
 ## 按条件过滤选项：excluded 整条丢掉，hidden 且写了 hidden_text 的灰显占位。
@@ -678,8 +848,10 @@ func _on_battle_finished() -> void:
 
 ## ────────────────────────── 弹窗基础设施 ──────────────────────────
 
-## 实例化一个弹窗并入树，返回配置好的实例（尚未打开）
-func _make_modal(title: String, accent: Color, width: float, body_height: float) -> GameModal:
+## 实例化一个面板并入树，返回配置好的实例（尚未打开）。
+## 默认走右侧抽屉；确认框 / 输入框传 GameModal.MODE_CENTER 走居中弹窗。
+func _make_modal(title: String, accent: Color, width: float, body_height: float,
+		mode: String = GameModal.MODE_DRAWER) -> GameModal:
 	var modal := MODAL_SCENE.instantiate() as GameModal
 	add_child(modal)
 	modal.configure({
@@ -687,14 +859,22 @@ func _make_modal(title: String, accent: Color, width: float, body_height: float)
 		"accent": accent,
 		"width": width,
 		"body_height": body_height,
+		"mode": mode,
 	})
 	return modal
 
 
-## 压栈并打开。栈里已有弹窗时，屏蔽下面那层的 ESC，避免一次按键关掉两层。
+## 压栈并打开。栈里已有面板时屏蔽下面那层的 ESC，避免一次按键关掉两层。
+##
+## 同一时间只显示一个抽屉：新抽屉打开时把旧抽屉滑出屏幕（保活、不销毁），
+## 等新抽屉关闭时再由 _on_modal_closed 把它滑回来——这就是"返回上一层"的观感。
+## 居中弹窗（确认框 / 输入框）是叠在抽屉之上的，不能把抽屉收起来。
 func _push_modal(modal: GameModal) -> void:
 	if not _modal_stack.is_empty():
-		_modal_stack.back().input_blocked = true
+		var top: GameModal = _modal_stack.back()
+		top.input_blocked = true
+		if modal.mode == GameModal.MODE_DRAWER and top.mode == GameModal.MODE_DRAWER:
+			top.hide_for_stack()
 	_modal_stack.append(modal)
 	modal.closed.connect(_on_modal_closed.bind(modal))
 	modal.open()
@@ -705,7 +885,12 @@ func _on_modal_closed(modal: GameModal) -> void:
 	if idx != -1:
 		_modal_stack.remove_at(idx)
 	if not _modal_stack.is_empty():
-		_modal_stack.back().input_blocked = false
+		var top: GameModal = _modal_stack.back()
+		top.input_blocked = false
+		# 关掉的是一个抽屉 → 把被它顶下去的抽屉滑回来；
+		# 关掉的是居中弹窗（确认框）→ 下面那个抽屉本来就还在，别重播滑入动画
+		if modal.mode == GameModal.MODE_DRAWER and top.mode == GameModal.MODE_DRAWER:
+			top.show_from_stack()
 	if modal == _inv_modal:
 		_inv_modal = null
 		_inv_list_box = null
@@ -713,6 +898,7 @@ func _on_modal_closed(modal: GameModal) -> void:
 		_inv_actions = null
 		_inv_status = null
 		_inv_tab_btns = []
+		_inv_filter_btns = []
 	if modal == _shop_modal:
 		_shop_modal = null
 		_shop_list_box = null
@@ -724,17 +910,29 @@ func _on_modal_closed(modal: GameModal) -> void:
 		_diary_detail = null
 		_diary_track_btn = null
 		_diary_delete_btn = null
+		_diary_filter_btns = []
+	if modal == _codex_modal:
+		_codex_modal = null
+		_codex_list_box = null
+		_codex_detail = null
+		_codex_filter_btns = []
 
 
+## 一次性收掉所有面板（读档成功后用）。
+## 抽屉是"滑出动画放完才 emit closed"的，栈不会同步清空，所以先取快照再清栈，
+## 否则 while + back().close() 会因为栈始终没变化而空转。
 func _close_all_modals() -> void:
-	while not _modal_stack.is_empty():
-		_modal_stack.back().close()
+	var stack: Array[GameModal] = _modal_stack.duplicate()
+	_modal_stack.clear()
+	for modal in stack:
+		modal.input_blocked = false
+		modal.close()
 
 
-## 轻量确认框，叠在当前弹窗之上；确认后执行 on_confirm
+## 轻量确认框，居中叠在当前面板之上；确认后执行 on_confirm
 func _open_confirm(title: String, message: String, on_confirm: Callable,
 		accent: Color = GameModal.ACCENT_PINK) -> void:
-	var modal := _make_modal(title, accent, 460.0, 60.0)
+	var modal := _make_modal(title, accent, 460.0, 60.0, GameModal.MODE_CENTER)
 	modal.add_text(message)
 	modal.add_action("confirm", "[Y] 确认", accent)
 	modal.add_action("cancel", "[N] 取消")
@@ -803,11 +1001,76 @@ func _make_list_scroll(size: Vector2) -> Array:
 	return [scroll, box]
 
 
+## ────────────────────────── 分类筛选条（背包 / 日记共用） ──────────────────────────
+
+## 背包与「地上」的分类：【id, 显示名】。id 只是分组名，真正判定看 INV_FILTER_TYPES。
+const INV_FILTERS: Array = [
+	["all", "全部"],
+	["equip", "装备"],
+	["consumable", "消耗品"],
+	["key", "钥匙"],
+	["quest", "任务"],
+	["misc", "其他"],
+]
+## 每种筛选收纳的物品类型集合（物品库里的 type 字段）。"all" 不在表内，代表不过滤。
+const INV_FILTER_TYPES: Dictionary = {
+	"equip": ["weapon", "armor"],
+	"consumable": ["consumable"],
+	"key": ["key"],
+	"quest": ["quest"],
+	"misc": ["material", "misc"],
+}
+
+## 日记的分类：任务与笔记本来就是两类，再留一个「全部」。
+const DIARY_FILTERS: Array = [
+	["all", "全部"],
+	["task", "任务"],
+	["note", "笔记"],
+]
+
+
+## 建一排分类筛选按钮（自动换行）。entries 为 [[id, 显示名], ...]，
+## 点某个按钮时调 on_pick.call(id)。返回 [按钮容器, 按钮数组]。
+func _make_filter_bar(entries: Array, on_pick: Callable) -> Array:
+	var row := HFlowContainer.new()
+	row.add_theme_constant_override("h_separation", 6)
+	row.add_theme_constant_override("v_separation", 6)
+	var buttons: Array[Button] = []
+	for entry in entries:
+		var btn := Button.new()
+		btn.text = str(entry[1])
+		btn.custom_minimum_size = Vector2(84, 28)
+		btn.pressed.connect(on_pick.bind(str(entry[0])))
+		row.add_child(btn)
+		buttons.append(btn)
+	return [row, buttons]
+
+
+## 刷新筛选条：当前分类用强调色、其余压成次级色（与「背包 / 地上」分区同理）。
+func _refresh_filter_bar(modal: GameModal, entries: Array, buttons: Array,
+		current: String, accent: Color) -> void:
+	if modal == null:
+		return
+	for i in range(buttons.size()):
+		var on: bool = str(entries[i][0]) == current
+		var btn: Button = buttons[i]
+		modal.style_button(btn, accent if on else GameModal.MUTED)
+
+
+## 筛选出的物品是否命中当前分类
+func _inv_item_matches_filter(item: Dictionary) -> bool:
+	if _inv_filter == "all":
+		return true
+	var types: Array = INV_FILTER_TYPES.get(_inv_filter, [])
+	return types.has(str(item.get("type", "misc")))
+
+
 func _open_inventory() -> void:
 	var modal := _make_modal("物品栏", GameModal.ACCENT_CYAN, 780.0, 380.0)
 	_inv_modal = modal
 	_inv_selected = 0
 	_inv_tab = "bag"
+	_inv_filter = "all"
 
 	# 顶部分区切换：背包（含已装备）/ 地上（本房间丢下的东西）
 	var tabs := HBoxContainer.new()
@@ -820,6 +1083,11 @@ func _open_inventory() -> void:
 		tabs.add_child(tab_btn)
 		_inv_tab_btns.append(tab_btn)
 	modal.add_node(tabs)
+
+	# 分类筛选条：按物品类型把列表收窄
+	var filter_pair := _make_filter_bar(INV_FILTERS, _switch_inv_filter)
+	_inv_filter_btns = filter_pair[1]
+	modal.add_node(filter_pair[0])
 
 	var main := HBoxContainer.new()
 	main.add_theme_constant_override("separation", 12)
@@ -878,6 +1146,16 @@ func _switch_inv_tab(tab: String) -> void:
 	_refresh_inventory()
 
 
+## 切换分类筛选（切分区不重置，背包与地上用同一套分类）
+func _switch_inv_filter(filter_id: String) -> void:
+	if _inv_filter == filter_id:
+		return
+	_inv_filter = filter_id
+	_inv_selected = 0
+	_set_inv_status("", true)
+	_refresh_inventory()
+
+
 ## 主界面上的提示行：成功用绿色、失败用红色
 func _set_inv_status(message: String, ok: bool = true) -> void:
 	if _inv_status == null:
@@ -915,8 +1193,11 @@ func _refresh_inventory() -> void:
 		_inv_items = GameEngine.get_ground_items()
 	else:
 		_inv_items = _bag_entries()
+	if _inv_filter != "all":
+		_inv_items = _inv_items.filter(_inv_item_matches_filter)
 
 	_refresh_inv_tabs()
+	_refresh_filter_bar(_inv_modal, INV_FILTERS, _inv_filter_btns, _inv_filter, GameModal.ACCENT_CYAN)
 
 	for child in _inv_list_box.get_children():
 		_inv_list_box.remove_child(child)
@@ -924,7 +1205,7 @@ func _refresh_inventory() -> void:
 
 	if _inv_items.is_empty():
 		var empty := Label.new()
-		empty.text = "（地上空空的）" if _inv_tab == "ground" else "（背包空空如也）"
+		empty.text = _empty_inv_text()
 		empty.add_theme_color_override("font_color", GameModal.MUTED)
 		_inv_list_box.add_child(empty)
 		_inv_detail.text = ""
@@ -968,6 +1249,13 @@ func _bag_count_hint() -> int:
 	return GameEngine.inv_mgr.all().size() + GameEngine.get_equipment().size()
 
 
+## 列表为空时的提示语：区分「真的没东西」和「只是被分类筛掉了」
+func _empty_inv_text() -> String:
+	if _inv_filter != "all":
+		return "（这个分类下没有东西）"
+	return "（地上空空的）" if _inv_tab == "ground" else "（背包空空如也）"
+
+
 func _select_inventory_item(index: int) -> void:
 	_inv_selected = index
 	_set_inv_status("", true)   # 换一件物品就清掉上一条操作提示
@@ -1001,10 +1289,12 @@ func _show_inventory_detail(index: int) -> void:
 func _rebuild_inv_actions(item: Dictionary, index: int) -> void:
 	_clear_inv_actions()
 
-	# 地上的东西：只有一个动作，捡回来
+	# 地上的东西：只有一个动作，捡回来。
+	# 注意用的是 ground_index（原始地面列表下标）而不是列表下标——
+	# 分类筛选之后两者不再相等，用列表下标会捡错东西。
 	if item.get("ground", false):
 		_add_inv_action("捡起", GameModal.ACCENT_GREEN,
-			func() -> void: _pick_up_ground(index))
+			func() -> void: _pick_up_ground(int(item.get("ground_index", index))))
 		return
 
 	# 已装备的：只能卸下
@@ -1102,7 +1392,7 @@ const EQUIP_STAT_NAMES: Dictionary = {"attack": "攻击", "defense": "防御", "
 
 
 func _open_equipment() -> void:
-	var modal := _make_modal("装备", GameModal.ACCENT_AMBER, 660.0, 300.0)
+	var modal := _make_modal("装备", GameModal.ACCENT_AMBER, 560.0, 300.0)
 	modal.action_pressed.connect(func(id: String) -> void:
 		if id.begins_with("equip:"):
 			_do_equip(id.substr(6), modal)
@@ -1116,7 +1406,7 @@ func _open_equipment() -> void:
 ## 重建装备界面内容。装备/卸下成功后直接再调一次即可刷新。
 func _fill_equipment(modal: GameModal) -> void:
 	modal.configure({"title": "装备", "accent": GameModal.ACCENT_AMBER,
-		"width": 660.0, "body_height": 300.0})
+		"width": 560.0, "body_height": 300.0})
 
 	var equipment: Dictionary = GameEngine.get_equipment()
 	for slot in GameEngine.EQUIP_SLOTS:
@@ -1186,7 +1476,7 @@ func _do_unequip(slot: String, modal: GameModal) -> void:
 ## ────────────────────────── 存 / 读档 ──────────────────────────
 
 func _open_save() -> void:
-	var modal := _make_modal("保存游戏", GameModal.ACCENT_GOLD, 620.0, 50.0)
+	var modal := _make_modal("保存游戏", GameModal.ACCENT_GOLD, 560.0, 50.0)
 	modal.add_text("点击槽位保存。已有存档的槽位会先询问是否覆盖。", GameModal.MUTED)
 	modal.action_pressed.connect(func(id: String) -> void:
 		if id.begins_with("slot:"):
@@ -1199,7 +1489,7 @@ func _open_save() -> void:
 
 
 func _open_load() -> void:
-	var modal := _make_modal("读取存档", GameModal.ACCENT_GREEN, 620.0, 50.0)
+	var modal := _make_modal("读取存档", GameModal.ACCENT_GREEN, 560.0, 50.0)
 	modal.add_text("读取会覆盖当前未保存的进度。", GameModal.MUTED)
 	modal.action_pressed.connect(func(id: String) -> void:
 		if id.begins_with("slot:"):
@@ -1271,7 +1561,7 @@ func _do_load(slot: int) -> void:
 ## ────────────────────────── 设置 ──────────────────────────
 
 func _open_settings() -> void:
-	var modal := _make_modal("设置", GameModal.ACCENT_GOLD, 660.0, 420.0)
+	var modal := _make_modal("设置", GameModal.ACCENT_GOLD, 560.0, 420.0)
 	modal.action_pressed.connect(func(id: String) -> void:
 		match id:
 			"menu":
@@ -1296,7 +1586,7 @@ func _open_settings() -> void:
 
 func _fill_settings(modal: GameModal) -> void:
 	modal.configure({"title": "设置", "accent": GameModal.ACCENT_GOLD,
-		"width": 660.0, "body_height": 420.0})
+		"width": 560.0, "body_height": 420.0})
 	SettingsPanel.fill(modal)
 	modal.add_action("menu", "返回主菜单", GameModal.ACCENT_CYAN)
 	modal.add_action("load", "读取存档", GameModal.ACCENT_GREEN)
@@ -1346,7 +1636,7 @@ func _open_shop(shop_id: String) -> void:
 
 	_shop_id = shop_id
 	_shop_selected = 0
-	var modal := _make_modal(str(shop.get("name", "商店")), ACCENT_SHOP, 820.0, 330.0)
+	var modal := _make_modal(str(shop.get("name", "商店")), ACCENT_SHOP, 780.0, 330.0)
 	_shop_modal = modal
 
 	var main := HBoxContainer.new()
@@ -1512,8 +1802,14 @@ func _open_diary() -> void:
 	_set_diary_flash(false)
 
 	_diary_selected = 0
-	var modal := _make_modal("日 记", ACCENT_DIARY, 720.0, 330.0)
+	_diary_filter = "all"
+	var modal := _make_modal("日 记", ACCENT_DIARY, 780.0, 330.0)
 	_diary_modal = modal
+
+	# 分类筛选条：全部 / 任务 / 笔记
+	var filter_pair := _make_filter_bar(DIARY_FILTERS, _switch_diary_filter)
+	_diary_filter_btns = filter_pair[1]
+	modal.add_node(filter_pair[0])
 
 	var main := HBoxContainer.new()
 	main.add_theme_constant_override("separation", 12)
@@ -1553,17 +1849,30 @@ func _open_diary() -> void:
 	_push_modal(modal)
 
 
+## 切换日记分类（全部 / 任务 / 笔记）
+func _switch_diary_filter(filter_id: String) -> void:
+	if _diary_filter == filter_id:
+		return
+	_diary_filter = filter_id
+	_diary_selected = 0
+	_rebuild_diary_entries()
+
+
 func _rebuild_diary_entries() -> void:
 	for child in _diary_list_box.get_children():
 		_diary_list_box.remove_child(child)
 		child.queue_free()
 
+	_refresh_filter_bar(_diary_modal, DIARY_FILTERS, _diary_filter_btns, _diary_filter, ACCENT_DIARY)
+
 	_diary_entries = []
 	var diary: Dictionary = GameEngine.state.diary
 	var tasks: Array = diary.get("tasks", [])
 	var notes: Array = diary.get("notes", [])
+	var show_tasks: bool = _diary_filter != "note"
+	var show_notes: bool = _diary_filter != "task"
 
-	if not tasks.is_empty():
+	if show_tasks and not tasks.is_empty():
 		_diary_list_box.add_child(_make_section_header("── 任务 ──"))
 		for task in tasks:
 			_diary_entries.append({"type": "task", "data": task})
@@ -1572,7 +1881,7 @@ func _rebuild_diary_entries() -> void:
 				label = "✓ " + label
 			_diary_list_box.add_child(_make_entry_button(_diary_entries.size() - 1, label))
 
-	if not notes.is_empty():
+	if show_notes and not notes.is_empty():
 		_diary_list_box.add_child(_make_section_header("── 笔记 ──"))
 		for note in notes:
 			_diary_entries.append({"type": "note", "data": note})
@@ -1580,7 +1889,7 @@ func _rebuild_diary_entries() -> void:
 
 	if _diary_entries.is_empty():
 		var empty := Label.new()
-		empty.text = "（日记还是空的）"
+		empty.text = "（日记还是空的）" if _diary_filter == "all" else "（这个分类下没有内容）"
 		empty.add_theme_color_override("font_color", GameModal.MUTED)
 		_diary_list_box.add_child(empty)
 		_diary_detail.text = ""
@@ -1684,7 +1993,7 @@ func _delete_selected_note() -> void:
 
 
 func _open_new_note() -> void:
-	var modal := _make_modal("新建笔记", ACCENT_DIARY, 580.0, 60.0)
+	var modal := _make_modal("新建笔记", ACCENT_DIARY, 580.0, 60.0, GameModal.MODE_CENTER)
 	modal.add_text("标题:", GameModal.MUTED)
 	var title_input := LineEdit.new()
 	title_input.placeholder_text = "输入笔记标题..."
@@ -1724,3 +2033,145 @@ func _save_new_note(title: String, content: String) -> void:
 	_diary_selected = _diary_entries.size()
 	_rebuild_diary_entries()
 	_set_diary_flash(false)
+
+
+## ────────────────────────── 百科（游戏内 wiki） ──────────────────────────
+
+## 打开百科：左侧按分类列词条，右侧读正文。没解锁的条目只显示「？？？」。
+## 数据全在 data/codex.json，解锁条件是该词条的 unlock flag。
+func _open_codex() -> void:
+	_codex_selected = 0
+	_codex_filter = "all"
+	_codex_modal = _make_modal("百 科", ACCENT_CODEX, 780.0, 360.0)
+
+	var filter_pair := _make_filter_bar(_codex_filter_defs(), _switch_codex_filter)
+	_codex_filter_btns = filter_pair[1]
+	_codex_modal.add_node(filter_pair[0])
+
+	var main := HBoxContainer.new()
+	main.add_theme_constant_override("separation", 12)
+	main.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	var scroll_pair := _make_list_scroll(Vector2(250, 300))
+	main.add_child(scroll_pair[0])
+	_codex_list_box = scroll_pair[1]
+
+	_codex_detail = RichTextLabel.new()
+	_codex_detail.bbcode_enabled = true
+	_codex_detail.scroll_active = true
+	_codex_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_codex_detail.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_codex_detail.add_theme_color_override("default_color", GameModal.BODY_TEXT)
+	main.add_child(_codex_detail)
+
+	_codex_modal.add_node(main)
+
+	var progress: Array = GameEngine.get_codex_progress()
+	_codex_modal.add_text("已收录 %d / %d 条。" % [int(progress[0]), int(progress[1])], GameModal.MUTED)
+	_codex_modal.add_action("close", "[ESC] 关闭")
+	_codex_modal.action_pressed.connect(func(id: String) -> void:
+		if id == "close":
+			_codex_modal.close()
+	)
+
+	_rebuild_codex_entries()
+	_push_modal(_codex_modal)
+
+
+## 百科分类筛选条的定义：全部 + codex.json 里的分类
+func _codex_filter_defs() -> Array:
+	var defs: Array = [["all", "全部"]]
+	for cat in GameEngine.get_codex_categories():
+		if not (cat is Dictionary):
+			continue
+		defs.append([str(cat.get("id", "")), str(cat.get("name", ""))])
+	return defs
+
+
+func _switch_codex_filter(filter_id: String) -> void:
+	if _codex_filter == filter_id:
+		return
+	_codex_filter = filter_id
+	_codex_selected = 0
+	_rebuild_codex_entries()
+
+
+func _rebuild_codex_entries() -> void:
+	for child in _codex_list_box.get_children():
+		_codex_list_box.remove_child(child)
+		child.queue_free()
+
+	_refresh_filter_bar(_codex_modal, _codex_filter_defs(), _codex_filter_btns, _codex_filter, ACCENT_CODEX)
+
+	_codex_entries = []
+	for entry in GameEngine.get_codex_entries():
+		if not (entry is Dictionary):
+			continue
+		if _codex_filter != "all" and str(entry.get("category", "")) != _codex_filter:
+			continue
+		_codex_entries.append(entry)
+		var unlocked: bool = GameEngine.is_codex_unlocked(entry)
+		var label := str(entry.get("title", "???")) if unlocked else "？？？"
+		_codex_list_box.add_child(_make_codex_entry_button(_codex_entries.size() - 1, label, unlocked))
+
+	if _codex_entries.is_empty():
+		var empty := Label.new()
+		empty.text = "（这个分类下还没有条目）"
+		empty.add_theme_color_override("font_color", GameModal.MUTED)
+		_codex_list_box.add_child(empty)
+		_codex_detail.text = ""
+		_make_scroll_friendly(_codex_list_box)
+		return
+
+	_codex_selected = clampi(_codex_selected, 0, _codex_entries.size() - 1)
+	_select_codex_entry(_codex_selected)
+	_make_scroll_friendly(_codex_list_box)   # 列表项要 PASS，滚轮才滚得动
+
+
+func _make_codex_entry_button(index: int, text: String, unlocked: bool) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	# 未解锁的条目留在列表里，但压成灰、点不动——让玩家知道"这里还有东西"
+	btn.disabled = not unlocked
+	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	btn.custom_minimum_size = Vector2(0, 30)
+	_codex_modal.style_button(btn, ACCENT_CODEX)
+	btn.add_theme_color_override("font_color",
+		ACCENT_CODEX if index == _codex_selected else GameModal.MUTED)
+	btn.pressed.connect(_select_codex_entry.bind(index))
+	return btn
+
+
+func _select_codex_entry(index: int) -> void:
+	if index < 0 or index >= _codex_entries.size():
+		return
+	_codex_selected = index
+	var entry_index := 0
+	for child in _codex_list_box.get_children():
+		if not (child is Button):
+			continue
+		child.add_theme_color_override("font_color",
+			ACCENT_CODEX if entry_index == index else GameModal.MUTED)
+		entry_index += 1
+	_show_codex_detail(index)
+
+
+func _show_codex_detail(index: int) -> void:
+	var entry: Dictionary = _codex_entries[index]
+	if not GameEngine.is_codex_unlocked(entry):
+		_codex_detail.text = "\n".join(PackedStringArray([
+			"[b][color=#888888]？？？[/color][/b]",
+			"",
+			"[color=#888888]这条记录还没有被唤醒。去这个世界里多走一走、多看一看。[/color]",
+		]))
+		return
+
+	var lines := PackedStringArray([
+		"[b][color=#5aa9ff]%s[/color][/b]" % str(entry.get("title", "???")),
+	])
+	var subtitle := str(entry.get("subtitle", ""))
+	if not subtitle.is_empty():
+		lines.append("[color=#888888]%s[/color]" % subtitle)
+	lines.append("")
+	lines.append(Palette.render(str(entry.get("body", ""))))
+	_codex_detail.text = "\n".join(lines)

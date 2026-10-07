@@ -1,5 +1,12 @@
 {
   "village_entrance": {
+    "description_alt": [
+      {
+        "if": {
+          "period": ["清晨", "上午", "正午", "下午"]
+        }
+      }
+    ],
     "options": [
       {
         "text": "【探索】走进村庄",
@@ -14,7 +21,11 @@
       {
         "text": "【探索】走向村子东边的小路",
         "target_room": "village_outskirts",
-        "effects": {}
+        "effects": {
+          "flags": {
+            "codex_blight": true
+          }
+        }
       },
       {
         "text": "【返回】回到茅草屋",
@@ -64,6 +75,13 @@
     ]
   },
   "village_center": {
+    "description_alt": [
+      {
+        "if": {
+          "period": ["清晨", "上午", "正午", "下午"]
+        }
+      }
+    ],
     "options": [
       {
         "text": "【探索】走进挂着灯笼的酒馆",
@@ -73,7 +91,11 @@
       {
         "text": "【探索】查看广场中央的石碑",
         "target_room": "village_monument",
-        "effects": {}
+        "effects": {
+          "flags": {
+            "codex_aurora": true
+          }
+        }
       },
       {
         "text": "【探索】走向那间摆满瓶罐的屋子",

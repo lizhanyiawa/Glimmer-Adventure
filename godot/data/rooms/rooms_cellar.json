@@ -79,6 +79,18 @@
       {
         "text": "【调查】沉重的铁皮木箱",
         "target_room": "cellar_alchemy_chest",
+        "relight": {
+          "require": {
+            "items": {
+              "has": "cellar_chest_key"
+            }
+          },
+          "exclude": {
+            "flags": {
+              "chest_opened": true
+            }
+          }
+        },
         "effects": {}
       },
       {
@@ -247,7 +259,6 @@
             "rat_defeated": true
           }
         },
-        "hidden_text": "已击败刺毛鼠",
         "effects": {
           "flags": {
             "rat_defeated": true
